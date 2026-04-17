@@ -56,3 +56,8 @@ fun SmartCaptureTheme(
         content = content
     )
 }
+
+enum class ThemeMode {
+    LIGHT,
+    DARK
+}
