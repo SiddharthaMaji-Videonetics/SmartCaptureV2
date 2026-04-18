@@ -73,11 +73,12 @@ fun preprocess(
 
     val rotation = image.imageInfo.rotationDegrees
 
-    // define source W/H in the rotated space
+    //  Rotated source dimensions (what model sees)
     val srcW = if (rotation == 90 || rotation == 270) image.height else image.width
     val srcH = if (rotation == 90 || rotation == 270) image.width else image.height
 
     val ratio = minOf(size.toFloat() / srcW, size.toFloat() / srcH)
+
     val newW = (srcW * ratio).toInt()
     val newH = (srcH * ratio).toInt()
 
@@ -87,9 +88,9 @@ fun preprocess(
     val buffer = ByteBuffer.allocateDirect(1 * 3 * size * size * 4)
     buffer.order(ByteOrder.nativeOrder())
 
-    // padding (114) in CHW BGR
     val total = size * size
     val pad = 114f
+
     val r = FloatArray(total) { pad }
     val g = FloatArray(total) { pad }
     val b = FloatArray(total) { pad }
@@ -102,20 +103,23 @@ fun preprocess(
     val uvRowStride = image.planes[1].rowStride
     val uvPixelStride = image.planes[1].pixelStride
 
-    // map from destination (letterboxed) to source (rotated space)
     for (y in 0 until newH) {
         for (x in 0 until newW) {
 
-            val srcXr = (x / ratio).toInt()      // in rotated space
-            val srcYr = (y / ratio).toInt()
+            // 🔹 Map to rotated space
+            val srcXr = (x / ratio).toInt().coerceIn(0, srcW - 1)
+            val srcYr = (y / ratio).toInt().coerceIn(0, srcH - 1)
 
-            // map rotated-space → actual sensor coordinates
+            // 🔹 Map rotated → sensor space (FIXED)
             val (srcX, srcY) = when (rotation) {
-                90  -> Pair(srcYr, image.width - srcXr - 1)
+                90 -> Pair(srcYr, image.height - srcXr - 1)
                 180 -> Pair(image.width - srcXr - 1, image.height - srcYr - 1)
-                270 -> Pair(image.height - srcYr - 1, srcXr)
+                270 -> Pair(image.width - srcYr - 1, srcXr)
                 else -> Pair(srcXr, srcYr)
             }
+
+            // 🔹 Safety bounds
+            if (srcX !in 0 until image.width || srcY !in 0 until image.height) continue
 
             val yIndex = srcY * yRowStride + srcX
             val uvIndex = (srcY / 2) * uvRowStride + (srcX / 2) * uvPixelStride
@@ -124,7 +128,7 @@ fun preprocess(
             val U = (uPlane.get(uvIndex).toInt() and 0xFF)
             val V = (vPlane.get(uvIndex).toInt() and 0xFF)
 
-            // YUV → RGB
+            // 🔹 YUV → RGB
             var rVal = Y + 1.370705f * (V - 128)
             var gVal = Y - 0.337633f * (U - 128) - 0.698001f * (V - 128)
             var bVal = Y + 1.732446f * (U - 128)
@@ -135,16 +139,19 @@ fun preprocess(
 
             val px = ((y + dy.toInt()) * size + (x + dx.toInt()))
 
+            if (px !in 0 until total) continue
+
             r[px] = rVal
             g[px] = gVal
             b[px] = bVal
         }
     }
 
-    // CHW (BGR)
+    // 🔹 CHW (BGR)
     b.forEach { buffer.putFloat(it) }
     g.forEach { buffer.putFloat(it) }
     r.forEach { buffer.putFloat(it) }
+
     buffer.rewind()
 
     return PreprocessResult(
