@@ -13,8 +13,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -32,6 +36,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
@@ -132,70 +137,95 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
     val scope = rememberCoroutineScope()
 
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
-    return AnimatedContent(targetState = (interpreter !=null)) {
-        if(it){
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+    return Box(){
 
-                CameraPreviewWithImageProxy(
-                    frameIntervalMs = 200,
-                    onFrame = { imageProxy ->
-                        //scope.launch(Dispatchers.Default) {
-                        try {
-                            val prep = preprocess(imageProxy)
+        AnimatedContent(targetState = (interpreter !=null)) {
+            if(it){
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
 
-                            val output = Array(1) { Array(3549) { FloatArray(9) } }
+                    CameraPreviewWithImageProxy(
+                        frameIntervalMs = 500,
+                        onFrame = { imageProxy ->
+                            //scope.launch(Dispatchers.Default) {
+                            try {
+                                val prep = preprocess(imageProxy)
 
-                            interpreter?.run(prep.buffer, output)
+                                val output = Array(1) { Array(3549) { FloatArray(9) } }
 
-                            val detections = parseOutput(
-                                output,
-                                prep.ratio,
-                                prep.dx,
-                                prep.dy
-                            )
+                                interpreter?.run(prep.buffer, output)
 
-                            val finalDetections = nmsPerClass(detections)
+                                val detections = parseOutput(
+                                    output,
+                                    prep.ratio,
+                                    prep.dx,
+                                    prep.dy
+                                )
 
-                            // IMPORTANT: use preprocess source dims (rotation-aware)
-                            imageWidth = prep.srcWidth.toFloat()
-                            imageHeight = prep.srcHeight.toFloat()
+                                val finalDetections = nmsPerClass(detections)
 
-                            detectionList = finalDetections
-                            onDetectionChanges.invoke(finalDetections)
+                                // IMPORTANT: use preprocess source dims (rotation-aware)
+                                imageWidth = prep.srcWidth.toFloat()
+                                imageHeight = prep.srcHeight.toFloat()
 
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            imageProxy.close() // closed AFTER all usage
-                        }
-                        //}
+                                detectionList = finalDetections
+                                onDetectionChanges.invoke(finalDetections)
 
-                    },
-                )
-                BoundingBoxOverlay(
-                    boxes = detectionList.map { d-> d.rect },
-                    imageWidth = imageWidth,
-                    imageHeight = imageHeight,
-                    modifier = Modifier.fillMaxSize()
-                )
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            } finally {
+                                imageProxy.close() // closed AFTER all usage
+                            }
+                            //}
+
+                        },
+                    )
+                    BoundingBoxOverlay(
+                        boxes = detectionList.map { d-> d.rect },
+                        imageWidth = imageWidth,
+                        imageHeight = imageHeight,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }else{
+                Box(modifier = Modifier.fillMaxSize().background(
+                    color = androidx.compose.ui.graphics.Color(0xFF000000)
+                ),
+                    contentAlignment = Alignment.Center){
+                    Icon(
+                        painterResource(R.drawable.ic_videocamera),
+                        contentDescription = "Camera",
+                        tint = androidx.compose.ui.graphics.Color(0xFF606060),
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .width(64.dp)
+                            .height(64.dp)
+
+                    )
+                }
             }
-        }else{
-            Box(modifier = Modifier.fillMaxSize().background(
-                color = androidx.compose.ui.graphics.Color(0xFF000000)
-            ),
-                contentAlignment = Alignment.Center){
-                Icon(
-                    painterResource(R.drawable.ic_videocamera),
-                    contentDescription = "Camera"
-                )
-            }
+
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(5.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_flash_on),
+                modifier = Modifier.padding(5.dp),
+                contentDescription = "Camera",
+                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+                )
+        }
     }
+
+
 
 }
 
