@@ -165,7 +165,7 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
                                     prep.dy
                                 )
 
-                                val finalDetections = nmsPerClass(detections)
+                                val finalDetections = nmsPerClass(detections).filter { it.score > 0.8 }
 
                                 // IMPORTANT: use preprocess source dims (rotation-aware)
                                 imageWidth = prep.srcWidth.toFloat()
@@ -226,6 +226,7 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
         FocusBoxOverlay(
             modifier = Modifier.fillMaxSize(),
             isEditable = false,
+            isCenterGuideVisible = false,
             onRectChanged = {
                 Log.e("rect", it.toString())
             }

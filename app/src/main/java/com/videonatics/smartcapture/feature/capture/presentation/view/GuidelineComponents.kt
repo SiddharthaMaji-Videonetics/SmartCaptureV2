@@ -26,6 +26,7 @@ import kotlin.math.abs
 fun FocusBoxOverlay(
     modifier: Modifier = Modifier,
     isEditable: Boolean = false,
+    isCenterGuideVisible: Boolean = true,
     onRectChanged: (Rect) -> Unit = {}
 ) {
     var rect by remember { mutableStateOf<Rect?>(null) }
@@ -178,12 +179,15 @@ fun FocusBoxOverlay(
                     style = Stroke(width = 4.dp.toPx())
                 )
 
-                // center guides
-                val cx = size.width / 2
-                val cy = size.height / 2
+                if(isCenterGuideVisible){
+                    // center guides
+                    val cx = size.width / 2
+                    val cy = size.height / 2
 
-                drawLine(Color.Gray, Offset(cx, 0f), Offset(cx, size.height), 1.dp.toPx())
-                drawLine(Color.Gray, Offset(0f, cy), Offset(size.width, cy), 1.dp.toPx())
+                    drawLine(Color.Gray, Offset(cx, 0f), Offset(cx, size.height), 1.dp.toPx())
+                    drawLine(Color.Gray, Offset(0f, cy), Offset(size.width, cy), 1.dp.toPx())
+
+                }
 
                 if(isEditable) {
                     drawHandles(r, 20.dp.toPx())

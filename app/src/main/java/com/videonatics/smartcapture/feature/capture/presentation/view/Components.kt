@@ -80,7 +80,7 @@ fun CameraPreviewWithImageProxy(
 
                     val now = System.currentTimeMillis()
 
-                    // ✅ Send resolution only once
+                    //  Send resolution only once
                     if (!resolutionSent) {
                         onResolution(imageProxy.width, imageProxy.height)
                         resolutionSent = true
@@ -92,7 +92,7 @@ fun CameraPreviewWithImageProxy(
                         } catch (e: Exception) {
                             e.printStackTrace()
                         } finally {
-                            imageProxy.close() // 🚨 ALWAYS
+                            imageProxy.close() //  ALWAYS
                         }
                         lastFrameTime = now
                     } else {
