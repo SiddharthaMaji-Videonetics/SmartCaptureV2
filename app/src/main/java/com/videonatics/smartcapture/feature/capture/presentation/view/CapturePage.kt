@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
+import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadLabels
 import com.videonatics.smartcapture.core.loadModelFile
@@ -114,20 +118,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,  interpreter :  Interpre
 
     Scaffold { paddingValues ->
 
-        if(configuration.orientation == Configuration.ORIENTATION_PORTRAIT){
-            Column(
-                modifier = Modifier.padding(paddingValues).fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(modifier = Modifier.fillMaxSize().weight(6f)){
-                    CameraDetectionView(interpreter,onDetectionChanges)
-                }
-                Box(modifier = Modifier.fillMaxSize().weight(1f)){
-
-                }
-            }
-        }else{
+        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
             CameraDetectionView(interpreter,onDetectionChanges)
         }
 
@@ -197,7 +188,10 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
                 color = androidx.compose.ui.graphics.Color(0xFF000000)
             ),
                 contentAlignment = Alignment.Center){
-                Text("Loading Model", color = androidx.compose.ui.graphics.Color.White)
+                Icon(
+                    painterResource(R.drawable.ic_videocamera),
+                    contentDescription = "Camera"
+                )
             }
         }
 
