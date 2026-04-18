@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
 import androidx.camera.core.ImageProxy
@@ -12,6 +13,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,8 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
@@ -46,6 +52,7 @@ import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.toBitmap
+import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,6 +63,8 @@ import org.tensorflow.lite.gpu.GpuDelegate
 fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val labels = loadLabels(context)
+
+    val viewModel = hiltViewModel<CaptureViewModel>()
 
 
     val (interpreter, gpuDelegate) = remember {
@@ -89,7 +98,13 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
         }
     }
     CapturePageComponent(
-        interpreter = interpreter
+        interpreter = interpreter,
+        updateCanvasSize ={w,h->
+            viewModel.updateCanvasSize(w, h)
+        },
+        onFocusRectRect = {
+            viewModel.setFocusBox(it)
+        }
     ){
 
 
@@ -107,6 +122,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
             }
         }
 
+        viewModel.setDetection(it)
         Log.e("detection", text)
 
         //onResult(prep.paddedBitmap, text, final)
@@ -114,23 +130,53 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CapturePageComponent(modifier: Modifier = Modifier,  interpreter :  Interpreter? = null, onDetectionChanges: ( List<Detection>) -> Unit = {}) {
+fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, updateCanvasSize:(Float, Float) -> Unit={_,_->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
-            CameraDetectionView(interpreter,onDetectionChanges)
+            CameraDetectionView(interpreter,updateCanvasSize ,onFocusRectRect,onDetectionChanges)
         }
 
     }
 }
 
 @Composable
-fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Detection>)-> Unit) {
+fun CameraDetectionView(interpreter: Interpreter?, updateCanvasSize:(Float, Float) -> Unit, onFocusRectRect:(RectF)-> Unit, onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
 
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
+    var objectInBoxCount by remember { mutableStateOf(0) }
+    @Composable
+    fun BoxScope.toolbarComponent() {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(5.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_flash_on),
+                modifier = Modifier.padding(5.dp),
+                contentDescription = "Camera",
+                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+                )
+
+            Box(){
+                Text(objectInBoxCount.toString(), style = TextStyle(
+                    color = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+                    fontSize = 20.sp
+                ),
+                    modifier = Modifier.padding(5.dp))
+            }
+
+        }
+    }
+
     return Box(){
 
         AnimatedContent(targetState = (interpreter !=null)) {
@@ -181,7 +227,10 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
                         boxes = detectionList.map { d-> d.rect },
                         imageWidth = imageWidth,
                         imageHeight = imageHeight,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onCanvasSizeChanged = { w, h ->
+                            updateCanvasSize.invoke(w, h)
+                        }
                     )
                 }
             }else{
@@ -204,27 +253,18 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
 
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(5.dp)
-                .align(Alignment.TopCenter),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_flash_on),
-                modifier = Modifier.padding(5.dp),
-                contentDescription = "Camera",
-                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-
-                )
-        }
+        toolbarComponent()
+        if(imageWidth>0 && imageHeight >0){
         FocusBoxOverlay(
             modifier = Modifier.fillMaxSize(),
+            imageWidth = imageWidth,
+            imageHeight = imageHeight,
             isEditable = false,
             isCenterGuideVisible = false,
             onRectChanged = {
-                Log.e("rect", it.toString())
+                onFocusRectRect.invoke(it)
             }
-        )
+        )}
     }
 
 

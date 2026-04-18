@@ -130,12 +130,15 @@ fun BoundingBoxOverlay(
     imageHeight: Float,
     modifier: Modifier = Modifier,
     boxColor: Color = Color.Red,
-    strokeWidth: Float = 4f
+    strokeWidth: Float = 4f,
+    onCanvasSizeChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
     Canvas(modifier = modifier) {
 
         val viewW = size.width
         val viewH = size.height
+
+        onCanvasSizeChanged(viewW, viewH)
 
         // IMPORTANT: FILL_CENTER uses max scale
         val scale = maxOf(viewW / imageWidth, viewH / imageHeight)

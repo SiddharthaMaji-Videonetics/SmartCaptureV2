@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
 import android.content.res.Configuration
+import android.graphics.RectF
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -22,14 +23,17 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.videonatics.smartcapture.core.drawHandles
 import com.videonatics.smartcapture.core.getDragMode
+import com.videonatics.smartcapture.core.toImageRect
 import kotlin.math.abs
 
 @Composable
 fun FocusBoxOverlay(
     modifier: Modifier = Modifier,
+    imageWidth: Float,
+    imageHeight: Float,
     isEditable: Boolean = false,
     isCenterGuideVisible: Boolean = true,
-    onRectChanged: (Rect) -> Unit = {}
+    onRectChanged: (RectF) -> Unit = {}
 ) {
     var rect by remember { mutableStateOf<Rect?>(null) }
     var dragMode by remember { mutableStateOf(DragMode.NONE) }
@@ -43,6 +47,7 @@ fun FocusBoxOverlay(
     var dragAccumY by remember { mutableStateOf(0f) }
 
     val configuration = LocalConfiguration.current
+
     Box(modifier = modifier.fillMaxSize()) {
 
         Canvas(
@@ -79,8 +84,6 @@ fun FocusBoxOverlay(
                             rect = rect?.let { r ->
 
                                 var updated = when (dragMode) {
-
-                                    // resize
                                     DragMode.LEFT -> r.copy(left = r.left + dragAmount.x)
                                     DragMode.RIGHT -> r.copy(right = r.right + dragAmount.x)
                                     DragMode.TOP -> r.copy(top = r.top + dragAmount.y)
@@ -90,29 +93,24 @@ fun FocusBoxOverlay(
                                         left = r.left + dragAmount.x,
                                         top = r.top + dragAmount.y
                                     )
-
                                     DragMode.TOP_RIGHT -> r.copy(
                                         right = r.right + dragAmount.x,
                                         top = r.top + dragAmount.y
                                     )
-
                                     DragMode.BOTTOM_LEFT -> r.copy(
                                         left = r.left + dragAmount.x,
                                         bottom = r.bottom + dragAmount.y
                                     )
-
                                     DragMode.BOTTOM_RIGHT -> r.copy(
                                         right = r.right + dragAmount.x,
                                         bottom = r.bottom + dragAmount.y
                                     )
 
-                                    // move
                                     DragMode.MOVE -> r.translate(dragAmount.x, dragAmount.y)
-
                                     else -> r
                                 }
 
-                                //SNAP ONLY WHEN MOVING
+                                // 🔥 SNAP ONLY WHEN MOVING
                                 if (dragMode == DragMode.MOVE) {
 
                                     val snapThreshold = 30.dp.toPx()
@@ -124,7 +122,7 @@ fun FocusBoxOverlay(
                                     val rectCx = updated.center.x
                                     val rectCy = updated.center.y
 
-                                    // 🔹 RELEASE FIRST (prevents jitter)
+                                    // release first
                                     if (isSnappedX && abs(dragAccumX) > releaseThreshold) {
                                         isSnappedX = false
                                         dragAccumX = 0f
@@ -134,7 +132,7 @@ fun FocusBoxOverlay(
                                         dragAccumY = 0f
                                     }
 
-                                    // 🔹 APPLY SNAP
+                                    // apply snap
                                     if (isSnappedX) {
                                         updated = updated.translate(cx - rectCx, 0f)
                                     } else if (abs(rectCx - cx) < snapThreshold) {
@@ -152,7 +150,17 @@ fun FocusBoxOverlay(
                                     }
                                 }
 
-                                onRectChanged(updated)
+                                // Emit IMAGE RECT
+                                if (imageWidth > 0f && imageHeight > 0f) {
+                                    val imageRect = updated.toImageRect(
+                                        size.width.toFloat(),
+                                        size.height.toFloat(),
+                                        imageWidth,
+                                        imageHeight
+                                    )
+                                    onRectChanged(imageRect)
+                                }
+
 
                                 updated
                             }
@@ -161,30 +169,38 @@ fun FocusBoxOverlay(
                 }
         ) {
 
-            // init rect once
+            // init rect
             if (rect == null) {
-
-                rect = if(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                rect = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
                     Rect(
-                        left = size.width * 0.15f,
-                        top = size.height * 0.15f,
-                        right = size.width * 0.85f,
-                        bottom = size.height * 0.85f
+                        size.width * 0.15f,
+                        size.height * 0.15f,
+                        size.width * 0.85f,
+                        size.height * 0.85f
                     )
-                }else{
+                } else {
                     Rect(
-                        left = size.width * 0.2f,
-                        top = size.height * 0.3f,
-                        right = size.width * 0.8f,
-                        bottom = size.height * 0.7f
+                        size.width * 0.2f,
+                        size.height * 0.3f,
+                        size.width * 0.8f,
+                        size.height * 0.7f
                     )
                 }
-                rect?.let { onRectChanged(it) } //initial emit
+
+                rect?.let {
+                    if (imageWidth > 0f && imageHeight > 0f) {
+                        val imageRect = it.toImageRect(
+                            size.width,
+                            size.height,
+                            imageWidth,
+                            imageHeight
+                        )
+                        onRectChanged(imageRect)
+                    }
+                }
             }
 
             rect?.let { r ->
-
-                // box
                 drawRect(
                     color = Color.Green,
                     topLeft = Offset(r.left, r.top),
@@ -192,20 +208,17 @@ fun FocusBoxOverlay(
                     style = Stroke(width = 4.dp.toPx())
                 )
 
-                if(isCenterGuideVisible){
-                    // center guides
+                if (isCenterGuideVisible) {
                     val cx = size.width / 2
                     val cy = size.height / 2
 
                     drawLine(Color.Gray, Offset(cx, 0f), Offset(cx, size.height), 1.dp.toPx())
                     drawLine(Color.Gray, Offset(0f, cy), Offset(size.width, cy), 1.dp.toPx())
-
                 }
 
-                if(isEditable) {
+                if (isEditable) {
                     drawHandles(r, 20.dp.toPx())
                 }
-
             }
         }
     }

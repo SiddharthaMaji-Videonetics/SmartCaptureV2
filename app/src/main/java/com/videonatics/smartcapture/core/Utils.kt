@@ -343,3 +343,70 @@ fun DrawScope.drawHandles(rect: Rect, size: Float) {
         )
     }
 }
+
+fun List<android.graphics.Rect>.filterInside(container: android.graphics.Rect): List<android.graphics.Rect> {
+    return filter { r ->
+        r.left >= container.left &&
+                r.top >= container.top &&
+                r.right <= container.right &&
+                r.bottom <= container.bottom
+    }
+}
+fun RectF.mapToCanvas(
+    imageWidth: Float,
+    imageHeight: Float,
+    canvasWidth: Float,
+    canvasHeight: Float
+): Rect {
+
+    val scale = maxOf(canvasWidth / imageWidth, canvasHeight / imageHeight)
+
+    val scaledW = imageWidth * scale
+    val scaledH = imageHeight * scale
+
+    val dx = (canvasWidth - scaledW) / 2f
+    val dy = (canvasHeight - scaledH) / 2f
+
+    val isNormalized = right <= 1f
+
+    val leftSrc = if (isNormalized) left * imageWidth else left
+    val topSrc = if (isNormalized) top * imageHeight else top
+    val rightSrc = if (isNormalized) right * imageWidth else right
+    val bottomSrc = if (isNormalized) bottom * imageHeight else bottom
+
+    return Rect(
+        leftSrc * scale + dx,
+        topSrc * scale + dy,
+        rightSrc * scale + dx,
+        bottomSrc * scale + dy
+    )
+}
+
+fun Rect.toImageRect(
+    canvasWidth: Float,
+    canvasHeight: Float,
+    imageWidth: Float,
+    imageHeight: Float
+): RectF {
+
+    val scale = maxOf(canvasWidth / imageWidth, canvasHeight / imageHeight)
+
+    val scaledW = imageWidth * scale
+    val scaledH = imageHeight * scale
+
+    val dx = (canvasWidth - scaledW) / 2f
+    val dy = (canvasHeight - scaledH) / 2f
+
+    val leftImg = (left - dx) / scale
+    val topImg = (top - dy) / scale
+    val rightImg = (right - dx) / scale
+    val bottomImg = (bottom - dy) / scale
+
+    // Clamp to image bounds
+    return RectF(
+        leftImg.coerceIn(0f, imageWidth),
+        topImg.coerceIn(0f, imageHeight),
+        rightImg.coerceIn(0f, imageWidth),
+        bottomImg.coerceIn(0f, imageHeight)
+    )
+}
