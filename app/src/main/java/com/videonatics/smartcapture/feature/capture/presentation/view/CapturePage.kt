@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +67,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 
     val viewModel = hiltViewModel<CaptureViewModel>()
 
+    val objectInsideFocusBoxCount = viewModel.objectInsideFocusBoxCount.collectAsState(0)
 
     val (interpreter, gpuDelegate) = remember {
         val options = Interpreter.Options()
@@ -99,6 +101,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     }
     CapturePageComponent(
         interpreter = interpreter,
+        objectInBoxCount = objectInsideFocusBoxCount.value,
         updateCanvasSize ={w,h->
             viewModel.updateCanvasSize(w, h)
         },
@@ -130,24 +133,28 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, updateCanvasSize:(Float, Float) -> Unit={_,_->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
+fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, objectInBoxCount: Int = 0, updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
-            CameraDetectionView(interpreter,updateCanvasSize ,onFocusRectRect,onDetectionChanges)
+            CameraDetectionView(interpreter,objectInBoxCount, updateCanvasSize ,onFocusRectRect,onDetectionChanges)
         }
 
     }
 }
 
 @Composable
-fun CameraDetectionView(interpreter: Interpreter?, updateCanvasSize:(Float, Float) -> Unit, onFocusRectRect:(RectF)-> Unit, onDetectionChanges: (List<Detection>)-> Unit) {
+fun CameraDetectionView(interpreter: Interpreter?,
+                        objectInBoxCount: Int,
+                        updateCanvasSize:(Float, Float) -> Unit,
+                        onFocusRectRect:(RectF)-> Unit,
+                        onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
 
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
-    var objectInBoxCount by remember { mutableStateOf(0) }
+
     @Composable
     fun BoxScope.toolbarComponent() {
         Row(

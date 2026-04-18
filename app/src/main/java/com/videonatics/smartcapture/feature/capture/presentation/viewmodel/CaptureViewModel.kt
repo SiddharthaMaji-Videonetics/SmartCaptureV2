@@ -11,6 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor() : ViewModel(){
@@ -21,7 +22,7 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
     private val _detectionList = ArrayList<Detection>()
     private var _focusBox: RectF? =null
-    private var _objectInsideFocusBoxCount = MutableSharedFlow<Int>(0)
+    private var _objectInsideFocusBoxCount = MutableStateFlow(0)
     val objectInsideFocusBoxCount: Flow<Int> = _objectInsideFocusBoxCount
     fun setDetection(detections: List<Detection>) {
         _detectionList.clear()
@@ -39,10 +40,10 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
         val insideRects = _detectionList.map { it.rect.toRect() }.filterInside(_focusBox?.toRect()!!)
 
-        if(insideRects.isNotEmpty()){
+
         _objectInsideFocusBoxCount.tryEmit(insideRects.size)
             Log.e("boxInBox", insideRects.size.toString())
-        }
+
     }
 
     fun setFocusBox(rect: RectF){
