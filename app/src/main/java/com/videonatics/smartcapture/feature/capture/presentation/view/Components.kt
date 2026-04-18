@@ -9,6 +9,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -25,7 +26,7 @@ import java.util.concurrent.Executors
 fun CameraPreviewWithImageProxy(
     modifier: Modifier = Modifier,
     frameIntervalMs: Long = 150L,
-    onFrame: (imageProxy: ImageProxy) -> Unit,
+    onFrame: (ImageProxy) -> Unit,
     onResolution: (width: Int, height: Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
@@ -35,41 +36,56 @@ fun CameraPreviewWithImageProxy(
         ProcessCameraProvider.getInstance(context)
     }
 
+    //  Keep executor stable
+    val executor = remember { Executors.newSingleThreadExecutor() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            executor.shutdown()
+        }
+    }
+
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
+
             val previewView = PreviewView(ctx).apply {
-                // IMPORTANT: matches your overlay math
-                scaleType = PreviewView.ScaleType.FIT_CENTER
+                //  FULLSCREEN
+                scaleType = PreviewView.ScaleType.FILL_CENTER
             }
 
             cameraProviderFuture.addListener({
+
                 val cameraProvider = cameraProviderFuture.get()
 
                 val preview = Preview.Builder().build().apply {
                     surfaceProvider = previewView.surfaceProvider
                 }
 
-                val executor = Executors.newSingleThreadExecutor()
-
                 var lastFrameTime = 0L
+                var resolutionSent = false
 
                 val imageAnalyzer = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
 
                 imageAnalyzer.setAnalyzer(executor) { imageProxy ->
+
                     val now = System.currentTimeMillis()
 
-                    // provide resolution once
-                    onResolution(imageProxy.width, imageProxy.height)
+                    // ✅ Send resolution only once
+                    if (!resolutionSent) {
+                        onResolution(imageProxy.width, imageProxy.height)
+                        resolutionSent = true
+                    }
 
                     if (now - lastFrameTime >= frameIntervalMs) {
                         try {
                             onFrame(imageProxy)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         } finally {
-                            //ALWAYS close
-                            imageProxy.close()
+                            imageProxy.close() // 🚨 ALWAYS
                         }
                         lastFrameTime = now
                     } else {
@@ -81,12 +97,14 @@ fun CameraPreviewWithImageProxy(
 
                 try {
                     cameraProvider.unbindAll()
+
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         cameraSelector,
                         preview,
                         imageAnalyzer
                     )
+
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -101,9 +119,9 @@ fun CameraPreviewWithImageProxy(
 @Composable
 fun BoundingBoxOverlay(
     boxes: List<RectF>,
-    modifier: Modifier = Modifier,
     imageWidth: Float,
     imageHeight: Float,
+    modifier: Modifier = Modifier,
     boxColor: Color = Color.Red,
     strokeWidth: Float = 4f
 ) {
@@ -112,15 +130,17 @@ fun BoundingBoxOverlay(
         val viewW = size.width
         val viewH = size.height
 
-        //Same logic as ImageWithBoundingBoxes
-        val scale = minOf(viewW / imageWidth, viewH / imageHeight)
+        // IMPORTANT: FILL_CENTER uses max scale
+        val scale = maxOf(viewW / imageWidth, viewH / imageHeight)
 
-        val dx = (viewW - imageWidth * scale) / 2f
-        val dy = (viewH - imageHeight * scale) / 2f
+        val scaledW = imageWidth * scale
+        val scaledH = imageHeight * scale
+
+        val dx = (viewW - scaledW) / 2f
+        val dy = (viewH - scaledH) / 2f
 
         boxes.forEach { rect ->
 
-            //Detect normalized vs pixel coords
             val isNormalized = rect.right <= 1f
 
             val leftSrc = if (isNormalized) rect.left * imageWidth else rect.left
@@ -128,7 +148,6 @@ fun BoundingBoxOverlay(
             val rightSrc = if (isNormalized) rect.right * imageWidth else rect.right
             val bottomSrc = if (isNormalized) rect.bottom * imageHeight else rect.bottom
 
-            //Map to screen
             val left = leftSrc * scale + dx
             val top = topSrc * scale + dy
             val right = rightSrc * scale + dx

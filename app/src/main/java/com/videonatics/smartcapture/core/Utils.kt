@@ -64,53 +64,97 @@ fun loadModelFile(context: Context, modelName: String): MappedByteBuffer {
     )
 }
 
-fun preprocess(bitmap: Bitmap, size: Int = 416): PreprocessResult {
+
+
+fun preprocess(
+    image: ImageProxy,
+    size: Int = 416
+): PreprocessResult {
+
+    val rotation = image.imageInfo.rotationDegrees
+
+    // define source W/H in the rotated space
+    val srcW = if (rotation == 90 || rotation == 270) image.height else image.width
+    val srcH = if (rotation == 90 || rotation == 270) image.width else image.height
+
+    val ratio = minOf(size.toFloat() / srcW, size.toFloat() / srcH)
+    val newW = (srcW * ratio).toInt()
+    val newH = (srcH * ratio).toInt()
+
+    val dx = ((size - newW) / 2f)
+    val dy = ((size - newH) / 2f)
 
     val buffer = ByteBuffer.allocateDirect(1 * 3 * size * size * 4)
     buffer.order(ByteOrder.nativeOrder())
 
-    val origW = bitmap.width
-    val origH = bitmap.height
+    // padding (114) in CHW BGR
+    val total = size * size
+    val pad = 114f
+    val r = FloatArray(total) { pad }
+    val g = FloatArray(total) { pad }
+    val b = FloatArray(total) { pad }
 
-    val ratio = minOf(size.toFloat() / origW, size.toFloat() / origH)
+    val yPlane = image.planes[0].buffer
+    val uPlane = image.planes[1].buffer
+    val vPlane = image.planes[2].buffer
 
-    val newW = (origW * ratio).toInt()
-    val newH = (origH * ratio).toInt()
+    val yRowStride = image.planes[0].rowStride
+    val uvRowStride = image.planes[1].rowStride
+    val uvPixelStride = image.planes[1].pixelStride
 
-    val resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+    // map from destination (letterboxed) to source (rotated space)
+    for (y in 0 until newH) {
+        for (x in 0 until newW) {
 
-    val dx = (size - newW) / 2f
-    val dy = (size - newH) / 2f
+            val srcXr = (x / ratio).toInt()      // in rotated space
+            val srcYr = (y / ratio).toInt()
 
-    val padded = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(padded)
-    canvas.drawColor(Color.rgb(114, 114, 114))
-    canvas.drawBitmap(resized, dx, dy, null)
+            // map rotated-space → actual sensor coordinates
+            val (srcX, srcY) = when (rotation) {
+                90  -> Pair(srcYr, image.width - srcXr - 1)
+                180 -> Pair(image.width - srcXr - 1, image.height - srcYr - 1)
+                270 -> Pair(image.height - srcYr - 1, srcXr)
+                else -> Pair(srcXr, srcYr)
+            }
 
-    val pixels = IntArray(size * size)
-    padded.getPixels(pixels, 0, size, 0, 0, size, size)
+            val yIndex = srcY * yRowStride + srcX
+            val uvIndex = (srcY / 2) * uvRowStride + (srcX / 2) * uvPixelStride
 
-    val b = FloatArray(size * size)
-    val g = FloatArray(size * size)
-    val r = FloatArray(size * size)
+            val Y = (yPlane.get(yIndex).toInt() and 0xFF)
+            val U = (uPlane.get(uvIndex).toInt() and 0xFF)
+            val V = (vPlane.get(uvIndex).toInt() and 0xFF)
 
-    for (i in pixels.indices) {
-        val px = pixels[i]
+            // YUV → RGB
+            var rVal = Y + 1.370705f * (V - 128)
+            var gVal = Y - 0.337633f * (U - 128) - 0.698001f * (V - 128)
+            var bVal = Y + 1.732446f * (U - 128)
 
-        // LEGACY = FALSE → BGR, NO normalization
-        b[i] = Color.blue(px).toFloat()
-        g[i] = Color.green(px).toFloat()
-        r[i] = Color.red(px).toFloat()
+            rVal = rVal.coerceIn(0f, 255f)
+            gVal = gVal.coerceIn(0f, 255f)
+            bVal = bVal.coerceIn(0f, 255f)
+
+            val px = ((y + dy.toInt()) * size + (x + dx.toInt()))
+
+            r[px] = rVal
+            g[px] = gVal
+            b[px] = bVal
+        }
     }
 
-    // CHW
+    // CHW (BGR)
     b.forEach { buffer.putFloat(it) }
     g.forEach { buffer.putFloat(it) }
     r.forEach { buffer.putFloat(it) }
-
     buffer.rewind()
 
-    return PreprocessResult(buffer, ratio, dx, dy, padded)
+    return PreprocessResult(
+        buffer = buffer,
+        ratio = ratio,
+        dx = dx,
+        dy = dy,
+        srcWidth = srcW,
+        srcHeight = srcH
+    )
 }
 
 fun parseOutput(
@@ -206,14 +250,38 @@ fun loadLabels(context: Context): List<String> {
         .readLines()
 }
 
-fun RectF.toNormalized(
+fun rotateRect(
+    rect: RectF,
     imageWidth: Float,
-    imageHeight: Float
+    imageHeight: Float,
+    rotationDegrees: Int
 ): RectF {
-    return RectF(
-        this.left / imageWidth,
-        this.top / imageHeight,
-        this.right / imageWidth,
-        this.bottom / imageHeight
-    )
+
+    return when (rotationDegrees) {
+
+        0 -> rect
+
+        90 -> RectF(
+            rect.top,
+            imageWidth - rect.right,
+            rect.bottom,
+            imageWidth - rect.left
+        )
+
+        180 -> RectF(
+            imageWidth - rect.right,
+            imageHeight - rect.bottom,
+            imageWidth - rect.left,
+            imageHeight - rect.top
+        )
+
+        270 -> RectF(
+            imageHeight - rect.bottom,
+            rect.left,
+            imageHeight - rect.top,
+            rect.right
+        )
+
+        else -> rect
+    }
 }

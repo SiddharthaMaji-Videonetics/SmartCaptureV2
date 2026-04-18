@@ -8,5 +8,6 @@ data class PreprocessResult(
     val ratio: Float,
     val dx: Float,
     val dy: Float,
-    val paddedBitmap: Bitmap
+    val srcWidth: Int,   // width in the SAME space as model sees (after rotation handling)
+    val srcHeight: Int
 )
