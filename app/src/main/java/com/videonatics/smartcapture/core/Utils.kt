@@ -6,18 +6,23 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageFormat
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.YuvImage
 import androidx.camera.core.ImageProxy
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
+import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
+import kotlin.math.abs
 
 fun ImageProxy.toBitmap(): Bitmap? {
     val yBuffer = planes[0].buffer
@@ -43,7 +48,7 @@ fun ImageProxy.toBitmap(): Bitmap? {
     )
 
     val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(Rect(0, 0, width, height), 80, out)
+    yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 80, out)
 
     val imageBytes = out.toByteArray()
     return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
@@ -290,5 +295,51 @@ fun rotateRect(
         )
 
         else -> rect
+    }
+}
+
+fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
+
+    val nearLeft = abs(touch.x - rect.left) <= threshold
+    val nearRight = abs(touch.x - rect.right) <= threshold
+    val nearTop = abs(touch.y - rect.top) <= threshold
+    val nearBottom = abs(touch.y - rect.bottom) <= threshold
+
+    val isInside = rect.contains(touch)
+    val isNearEdge = nearLeft || nearRight || nearTop || nearBottom
+
+    if (isInside && !isNearEdge) return DragMode.MOVE
+
+    return when {
+        nearLeft && nearTop -> DragMode.TOP_LEFT
+        nearRight && nearTop -> DragMode.TOP_RIGHT
+        nearLeft && nearBottom -> DragMode.BOTTOM_LEFT
+        nearRight && nearBottom -> DragMode.BOTTOM_RIGHT
+
+        nearLeft -> DragMode.LEFT
+        nearRight -> DragMode.RIGHT
+        nearTop -> DragMode.TOP
+        nearBottom -> DragMode.BOTTOM
+
+        isInside -> DragMode.MOVE
+        else -> DragMode.NONE
+    }
+}
+
+fun DrawScope.drawHandles(rect: Rect, size: Float) {
+    val radius = size / 2
+
+    listOf(
+        Offset(rect.left, rect.top),
+        Offset(rect.right, rect.top),
+        Offset(rect.left, rect.bottom),
+        Offset(rect.right, rect.bottom)
+    ).forEach { center ->
+
+        drawCircle(
+            color = androidx.compose.ui.graphics.Color.Red,
+            radius = radius,
+            center = center
+        )
     }
 }

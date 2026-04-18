@@ -223,6 +223,13 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
 
                 )
         }
+        FocusBoxOverlay(
+            modifier = Modifier.fillMaxSize(),
+            isEditable = false,
+            onRectChanged = {
+                Log.e("rect", it.toString())
+            }
+        )
     }
 
 
