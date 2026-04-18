@@ -1,5 +1,6 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,6 +18,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.videonatics.smartcapture.core.drawHandles
 import com.videonatics.smartcapture.core.getDragMode
@@ -40,6 +42,7 @@ fun FocusBoxOverlay(
     var dragAccumX by remember { mutableStateOf(0f) }
     var dragAccumY by remember { mutableStateOf(0f) }
 
+    val configuration = LocalConfiguration.current
     Box(modifier = modifier.fillMaxSize()) {
 
         Canvas(
@@ -160,12 +163,22 @@ fun FocusBoxOverlay(
 
             // init rect once
             if (rect == null) {
-                rect = Rect(
-                    left = size.width * 0.2f,
-                    top = size.height * 0.3f,
-                    right = size.width * 0.8f,
-                    bottom = size.height * 0.7f
-                )
+
+                rect = if(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE){
+                    Rect(
+                        left = size.width * 0.15f,
+                        top = size.height * 0.15f,
+                        right = size.width * 0.85f,
+                        bottom = size.height * 0.85f
+                    )
+                }else{
+                    Rect(
+                        left = size.width * 0.2f,
+                        top = size.height * 0.3f,
+                        right = size.width * 0.8f,
+                        bottom = size.height * 0.7f
+                    )
+                }
                 rect?.let { onRectChanged(it) } //initial emit
             }
 

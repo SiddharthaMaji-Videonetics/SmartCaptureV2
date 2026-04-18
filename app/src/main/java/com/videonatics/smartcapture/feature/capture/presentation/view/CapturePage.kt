@@ -115,12 +115,6 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 
 @Composable
 fun CapturePageComponent(modifier: Modifier = Modifier,  interpreter :  Interpreter? = null, onDetectionChanges: ( List<Detection>) -> Unit = {}) {
-
-
-
-    val configuration = LocalConfiguration.current
-
-
     Scaffold { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
@@ -165,7 +159,7 @@ fun CameraDetectionView(interpreter: Interpreter?, onDetectionChanges: (List<Det
                                     prep.dy
                                 )
 
-                                val finalDetections = nmsPerClass(detections).filter { it.score > 0.8 }
+                                val finalDetections = nmsPerClass(detections).filter { it.score > 0.9 }
 
                                 // IMPORTANT: use preprocess source dims (rotation-aware)
                                 imageWidth = prep.srcWidth.toFloat()
