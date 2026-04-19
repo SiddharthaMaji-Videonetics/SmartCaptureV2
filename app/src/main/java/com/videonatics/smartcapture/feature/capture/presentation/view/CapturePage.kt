@@ -266,8 +266,8 @@ fun CameraDetectionView(interpreter: Interpreter?,
             modifier = Modifier.fillMaxSize(),
             imageWidth = imageWidth,
             imageHeight = imageHeight,
-            isEditable = false,
-            isCenterGuideVisible = false,
+            isEditable = true,
+            isCenterGuideVisible = true,
             onRectChanged = {
                 onFocusRectRect.invoke(it)
             }
