@@ -275,8 +275,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                 .fillMaxSize(),
                             focusBox!!,
                             inst,
-                            imageWidth,
-                            imageHeight
                             )
                     }
 
@@ -309,9 +307,12 @@ fun CameraDetectionView(interpreter: Interpreter?,
             imageHeight = imageHeight,
             isEditable = true,
             isCenterGuideVisible = true,
-            onRectChanged = {
-                focusBox = it
+            onImageRectChanged = {
+
                 onFocusRectRect.invoke(it)
+            },
+            onScreenRectChanged = {
+                focusBox = it
             }
         )}
     }

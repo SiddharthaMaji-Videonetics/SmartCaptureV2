@@ -592,22 +592,3 @@ fun distance(
     val dy = y2 - y1
     return kotlin.math.sqrt(dx * dx + dy * dy)
 }
-
-fun imageToScreenRect(
-    rect: RectF,
-    screenW: Float,
-    screenH: Float,
-    imageW: Float,
-    imageH: Float
-): RectF {
-
-    val scaleX = screenW / imageW
-    val scaleY = screenH / imageH
-
-    return RectF(
-        rect.left * scaleX,
-        rect.top * scaleY,
-        rect.right * scaleX,
-        rect.bottom * scaleY
-    )
-}

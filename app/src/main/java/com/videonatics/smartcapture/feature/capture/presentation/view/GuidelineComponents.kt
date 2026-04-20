@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.capture.presentation.view
 
 import android.content.res.Configuration
 import android.graphics.RectF
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -12,26 +13,30 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.drawHandles
 import com.videonatics.smartcapture.core.getDragMode
-import com.videonatics.smartcapture.core.imageToScreenRect
 import com.videonatics.smartcapture.core.toImageRect
 import kotlin.math.abs
 
@@ -42,16 +47,15 @@ fun FocusBoxOverlay(
     imageHeight: Float,
     isEditable: Boolean = false,
     isCenterGuideVisible: Boolean = true,
-    onRectChanged: (RectF) -> Unit = {}
+    onImageRectChanged: (RectF) -> Unit = {},
+    onScreenRectChanged: (RectF) -> Unit = {}
 ) {
     var rect by remember { mutableStateOf<Rect?>(null) }
     var dragMode by remember { mutableStateOf(DragMode.NONE) }
 
-    // snap state
     var isSnappedX by remember { mutableStateOf(false) }
     var isSnappedY by remember { mutableStateOf(false) }
 
-    // drag intent (for release)
     var dragAccumX by remember { mutableStateOf(0f) }
     var dragAccumY by remember { mutableStateOf(0f) }
 
@@ -119,11 +123,14 @@ fun FocusBoxOverlay(
                                     else -> r
                                 }
 
-                                // 🔥 SNAP ONLY WHEN MOVING
+                                // -------------------------
+                                // SNAP (same as before)
+                                // -------------------------
                                 if (dragMode == DragMode.MOVE) {
 
                                     val snapThreshold = 30.dp.toPx()
                                     val releaseThreshold = 60.dp.toPx()
+
 
                                     val cx = size.width / 2f
                                     val cy = size.height / 2f
@@ -131,7 +138,6 @@ fun FocusBoxOverlay(
                                     val rectCx = updated.center.x
                                     val rectCy = updated.center.y
 
-                                    // release first
                                     if (isSnappedX && abs(dragAccumX) > releaseThreshold) {
                                         isSnappedX = false
                                         dragAccumX = 0f
@@ -141,7 +147,6 @@ fun FocusBoxOverlay(
                                         dragAccumY = 0f
                                     }
 
-                                    // apply snap
                                     if (isSnappedX) {
                                         updated = updated.translate(cx - rectCx, 0f)
                                     } else if (abs(rectCx - cx) < snapThreshold) {
@@ -159,7 +164,21 @@ fun FocusBoxOverlay(
                                     }
                                 }
 
-                                // Emit IMAGE RECT
+                                // -------------------------
+                                // ✅ EMIT BOTH RECTS
+                                // -------------------------
+
+                                // SCREEN RECT (for overlay)
+                                onScreenRectChanged(
+                                    RectF(
+                                        updated.left,
+                                        updated.top,
+                                        updated.right,
+                                        updated.bottom
+                                    )
+                                )
+
+                                // IMAGE RECT (for ML)
                                 if (imageWidth > 0f && imageHeight > 0f) {
                                     val imageRect = updated.toImageRect(
                                         size.width.toFloat(),
@@ -167,9 +186,8 @@ fun FocusBoxOverlay(
                                         imageWidth,
                                         imageHeight
                                     )
-                                    onRectChanged(imageRect)
+                                    onImageRectChanged(imageRect)
                                 }
-
 
                                 updated
                             }
@@ -178,7 +196,7 @@ fun FocusBoxOverlay(
                 }
         ) {
 
-            // init rect
+            // INIT
             if (rect == null) {
                 rect = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
                     Rect(
@@ -195,21 +213,26 @@ fun FocusBoxOverlay(
                         size.height * 0.7f
                     )
                 }
-
-                rect?.let {
-                    if (imageWidth > 0f && imageHeight > 0f) {
-                        val imageRect = it.toImageRect(
-                            size.width,
-                            size.height,
-                            imageWidth,
-                            imageHeight
-                        )
-                        onRectChanged(imageRect)
-                    }
-                }
             }
 
             rect?.let { r ->
+
+                // ALSO EMIT on first draw
+                onScreenRectChanged(
+                    RectF(r.left, r.top, r.right, r.bottom)
+                )
+
+                if (imageWidth > 0f && imageHeight > 0f) {
+                    val imageRect = r.toImageRect(
+                        size.width,
+                        size.height,
+                        imageWidth,
+                        imageHeight
+                    )
+                    onImageRectChanged(imageRect)
+                }
+
+                // DRAW BOX
                 drawRect(
                     color = Color.Green,
                     topLeft = Offset(r.left, r.top),
@@ -237,13 +260,15 @@ fun FocusBoxOverlay(
 fun InstructionGuideOverlay(
     modifier: Modifier = Modifier,
     focusRect: RectF,
-    instruction: AlignmentVector?,
-    imageWidth: Float,
-    imageHeight: Float
+    instruction: AlignmentVector?
 ) {
 
+    if (instruction == null) return
+
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
     val blinkAlpha by rememberInfiniteTransition().animateFloat(
-        initialValue = 0.2f,
+        initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             tween(500),
@@ -251,79 +276,85 @@ fun InstructionGuideOverlay(
         )
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // -------------------------
+    // 🔥 ZOOM LOGIC (outside Canvas)
+    // -------------------------
+
+    val zoomHint = when {
+        instruction.z < -1 -> "Move Closer"
+        instruction.z > 0-> "Move Away"
+        else -> null
+    }
+
+    Log.e("zoom", instruction.z.toString())
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { containerSize = it }   // ✅ get size here
+    ) {
 
         Canvas(modifier = Modifier.matchParentSize()) {
 
-            if (instruction == null) return@Canvas
+            val rect = focusRect
+            val stroke = 8f
+            val paddingY = 15f
+            val threshold = 0.02f
 
-            val rect = imageToScreenRect(
-                focusRect,
-                size.width,
-                size.height,
-                imageWidth,
-                imageHeight
-            )
-
-            val paddingY = 25f  // only for top/bottom
-            val stroke = 7f
             val color = Color.White.copy(alpha = blinkAlpha)
 
-            // expanded ONLY vertically
-            val guideRectY = RectF(
-                rect.left,
-                rect.top - paddingY,
-                rect.right,
-                rect.bottom + paddingY
+            val guideTop = rect.top - paddingY
+            val guideBottom = rect.bottom + paddingY
+
+            // LEFT
+            if (instruction.h < -threshold) {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(rect.left - 15f, rect.top),
+                    size = Size(stroke, rect.height())
+                )
+            }
+
+            // RIGHT
+            if (instruction.h > threshold) {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(rect.right - stroke + 15f, rect.top),
+                    size = Size(stroke, rect.height())
+                )
+            }
+
+            // TOP
+            if (instruction.v < -threshold) {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(rect.left, guideTop),
+                    size = Size(rect.width(), stroke)
+                )
+            }
+
+            // BOTTOM
+            if (instruction.v > threshold) {
+                drawRect(
+                    color = color,
+                    topLeft = Offset(rect.left, guideBottom - stroke),
+                    size = Size(rect.width(), stroke)
+                )
+            }
+        }
+
+        // -------------------------
+        // ✅ TEXT (now works properly)
+        // -------------------------
+        zoomHint?.let {
+            Text(
+                text = it,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 24.dp)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             )
-
-            // -------------------------
-            // LEFT (INSIDE box)
-            // -------------------------
-            if (instruction.h < -0.05f) {
-                drawLine(
-                    color = color,
-                    start = Offset(rect.left, rect.top),
-                    end = Offset(rect.left, rect.bottom),
-                    strokeWidth = stroke
-                )
-            }
-
-            // -------------------------
-            // RIGHT (INSIDE box)
-            // -------------------------
-            if (instruction.h > 0.05f) {
-                drawLine(
-                    color = color,
-                    start = Offset(rect.right, rect.top),
-                    end = Offset(rect.right, rect.bottom),
-                    strokeWidth = stroke
-                )
-            }
-
-            // -------------------------
-            // TOP (OUTSIDE / expanded)
-            // -------------------------
-            if (instruction.v < -0.05f) {
-                drawLine(
-                    color = color,
-                    start = Offset(guideRectY.left, guideRectY.top),
-                    end = Offset(guideRectY.right, guideRectY.top),
-                    strokeWidth = stroke
-                )
-            }
-
-            // -------------------------
-            // BOTTOM (OUTSIDE / expanded)
-            // -------------------------
-            if (instruction.v > 0.05f) {
-                drawLine(
-                    color = color,
-                    start = Offset(guideRectY.left, guideRectY.bottom),
-                    end = Offset(guideRectY.right, guideRectY.bottom),
-                    strokeWidth = stroke
-                )
-            }
         }
     }
 }
