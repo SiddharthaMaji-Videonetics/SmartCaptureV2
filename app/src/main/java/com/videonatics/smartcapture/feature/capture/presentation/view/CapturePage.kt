@@ -51,9 +51,11 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
+import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadLabels
 import com.videonatics.smartcapture.core.loadModelFile
+import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
@@ -73,6 +75,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val viewModel = hiltViewModel<CaptureViewModel>()
     val objectInsideFocusBoxCount = viewModel.objectInsideFocusBoxCount.collectAsState(0)
 
+    val instruction = viewModel.inst.collectAsState(null)
     val (interpreter, gpuDelegate) = remember {
         val options = Interpreter.Options()
         var delegate: GpuDelegate? = null
@@ -107,6 +110,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
             CapturePageComponent(
                 interpreter = interpreter,
                 objectInBoxCount = objectInsideFocusBoxCount.value,
+                inst = instruction.value,
                 updateCanvasSize ={w,h->
                     viewModel.updateCanvasSize(w, h)
                 },
@@ -155,11 +159,12 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, objectInBoxCount: Int = 0, updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
+fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, objectInBoxCount: Int = 0,
+                         inst: AlignmentVector? = null, updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
-            CameraDetectionView(interpreter,objectInBoxCount, updateCanvasSize ,onFocusRectRect,onDetectionChanges)
+            CameraDetectionView(interpreter,objectInBoxCount, inst, updateCanvasSize ,onFocusRectRect,onDetectionChanges)
         }
 
     }
@@ -168,6 +173,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpret
 @Composable
 fun CameraDetectionView(interpreter: Interpreter?,
                         objectInBoxCount: Int,
+                        inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
                         onDetectionChanges: (List<Detection>)-> Unit) {
@@ -208,6 +214,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
     return Box(){
 
+        var focusBox by remember { mutableStateOf<RectF?>(null) }
         AnimatedContent(targetState = (interpreter !=null)) {
             if(it){
                 Box(
@@ -236,12 +243,13 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
                                 val finalDetections = nmsPerClass(detections).filter { it.score > 0.9 }
 
+                                val mergedDetections = mergeToFittedBoxes(finalDetections, 5f)
                                 // IMPORTANT: use preprocess source dims (rotation-aware)
                                 imageWidth = prep.srcWidth.toFloat()
                                 imageHeight = prep.srcHeight.toFloat()
 
-                                detectionList = finalDetections
-                                onDetectionChanges.invoke(finalDetections)
+                                detectionList = mergedDetections
+                                onDetectionChanges.invoke(mergedDetections)
 
                             } catch (e: Exception) {
                                 e.printStackTrace()
@@ -261,6 +269,17 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             updateCanvasSize.invoke(w, h)
                         }
                     )
+                    if(focusBox!=null) {
+                        InstructionGuideOverlay(
+                            modifier = Modifier
+                                .fillMaxSize(),
+                            focusBox!!,
+                            inst,
+                            imageWidth,
+                            imageHeight
+                            )
+                    }
+
                 }
             }else{
                 Box(modifier = Modifier.fillMaxSize().background(
@@ -291,6 +310,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
             isEditable = true,
             isCenterGuideVisible = true,
             onRectChanged = {
+                focusBox = it
                 onFocusRectRect.invoke(it)
             }
         )}

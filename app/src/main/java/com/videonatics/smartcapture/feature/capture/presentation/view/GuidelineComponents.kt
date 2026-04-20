@@ -3,7 +3,13 @@ package com.videonatics.smartcapture.feature.capture.presentation.view
 import android.content.res.Configuration
 import android.graphics.RectF
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,11 +24,14 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.drawHandles
 import com.videonatics.smartcapture.core.getDragMode
+import com.videonatics.smartcapture.core.imageToScreenRect
 import com.videonatics.smartcapture.core.toImageRect
 import kotlin.math.abs
 
@@ -219,6 +228,101 @@ fun FocusBoxOverlay(
                 if (isEditable) {
                     drawHandles(r, 20.dp.toPx())
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun InstructionGuideOverlay(
+    modifier: Modifier = Modifier,
+    focusRect: RectF,
+    instruction: AlignmentVector?,
+    imageWidth: Float,
+    imageHeight: Float
+) {
+
+    val blinkAlpha by rememberInfiniteTransition().animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(500),
+            RepeatMode.Reverse
+        )
+    )
+
+    Box(modifier = modifier.fillMaxSize()) {
+
+        Canvas(modifier = Modifier.matchParentSize()) {
+
+            if (instruction == null) return@Canvas
+
+            val rect = imageToScreenRect(
+                focusRect,
+                size.width,
+                size.height,
+                imageWidth,
+                imageHeight
+            )
+
+            val paddingY = 25f  // only for top/bottom
+            val stroke = 7f
+            val color = Color.White.copy(alpha = blinkAlpha)
+
+            // expanded ONLY vertically
+            val guideRectY = RectF(
+                rect.left,
+                rect.top - paddingY,
+                rect.right,
+                rect.bottom + paddingY
+            )
+
+            // -------------------------
+            // LEFT (INSIDE box)
+            // -------------------------
+            if (instruction.h < -0.05f) {
+                drawLine(
+                    color = color,
+                    start = Offset(rect.left, rect.top),
+                    end = Offset(rect.left, rect.bottom),
+                    strokeWidth = stroke
+                )
+            }
+
+            // -------------------------
+            // RIGHT (INSIDE box)
+            // -------------------------
+            if (instruction.h > 0.05f) {
+                drawLine(
+                    color = color,
+                    start = Offset(rect.right, rect.top),
+                    end = Offset(rect.right, rect.bottom),
+                    strokeWidth = stroke
+                )
+            }
+
+            // -------------------------
+            // TOP (OUTSIDE / expanded)
+            // -------------------------
+            if (instruction.v < -0.05f) {
+                drawLine(
+                    color = color,
+                    start = Offset(guideRectY.left, guideRectY.top),
+                    end = Offset(guideRectY.right, guideRectY.top),
+                    strokeWidth = stroke
+                )
+            }
+
+            // -------------------------
+            // BOTTOM (OUTSIDE / expanded)
+            // -------------------------
+            if (instruction.v > 0.05f) {
+                drawLine(
+                    color = color,
+                    start = Offset(guideRectY.left, guideRectY.bottom),
+                    end = Offset(guideRectY.right, guideRectY.bottom),
+                    strokeWidth = stroke
+                )
             }
         }
     }

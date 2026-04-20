@@ -12,7 +12,10 @@ import androidx.camera.core.ImageProxy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
 import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
@@ -408,5 +411,203 @@ fun Rect.toImageRect(
         topImg.coerceIn(0f, imageHeight),
         rightImg.coerceIn(0f, imageWidth),
         bottomImg.coerceIn(0f, imageHeight)
+    )
+}
+
+fun mergeToFittedBoxes(
+    detections: List<Detection>,
+    margin: Float = 20f
+): List<Detection> {
+
+
+    val remaining = detections.toMutableList()
+    val result = mutableListOf<Detection>()
+
+    fun isClose(a: RectF, b: RectF): Boolean {
+        val expanded = RectF(
+            a.left - margin,
+            a.top - margin,
+            a.right + margin,
+            a.bottom + margin
+        )
+        return RectF.intersects(expanded, b)
+    }
+
+    while (remaining.isNotEmpty()) {
+
+        val seed = remaining.removeAt(0)
+
+        var minLeft = seed.rect.left
+        var minTop = seed.rect.top
+        var maxRight = seed.rect.right
+        var maxBottom = seed.rect.bottom
+
+        var bestScore = seed.score
+        var bestColor = seed.rectColor
+
+        var changed: Boolean
+
+        do {
+            changed = false
+
+            val iterator = remaining.iterator()
+
+            while (iterator.hasNext()) {
+                val other = iterator.next()
+
+                // Remove this if you want cross-class merging
+                if (other.classId != seed.classId) continue
+
+                val currentRect = RectF(minLeft, minTop, maxRight, maxBottom)
+
+                if (isClose(currentRect, other.rect)) {
+
+                    // Expand cluster bounds
+                    minLeft = minOf(minLeft, other.rect.left)
+                    minTop = minOf(minTop, other.rect.top)
+                    maxRight = maxOf(maxRight, other.rect.right)
+                    maxBottom = maxOf(maxBottom, other.rect.bottom)
+
+                    if (other.score > bestScore) {
+                        bestScore = other.score
+                        bestColor = other.rectColor
+                    }
+
+                    iterator.remove()
+                    changed = true
+                }
+            }
+
+        } while (changed)
+
+        result.add(
+            Detection(
+                rect = RectF(minLeft, minTop, maxRight, maxBottom),
+                score = bestScore,
+                classId = seed.classId,
+                rectColor = bestColor
+            )
+        )
+    }
+
+    return result
+}
+
+fun findBestBox(
+    detections: List<Detection>,
+    focusBox: RectF
+): Detection? {
+    return detections.maxByOrNull { det ->
+        val intersection = RectF().apply {
+            setIntersect(det.rect, focusBox)
+        }
+        val overlapArea = intersection.width() * intersection.height()
+        val detArea = det.rect.width() * det.rect.height()
+
+        // prioritize overlap, fallback to closeness
+        val overlapRatio = if (detArea > 0) overlapArea / detArea else 0f
+
+        val centerDist = distance(det.rect.centerX(), det.rect.centerY(),
+            focusBox.centerX(), focusBox.centerY())
+
+        overlapRatio * 2 - centerDist * 0.001f
+    }
+}
+
+fun getDirection(dx: Float, dy: Float, threshold: Float): String {
+    val horizontal = when {
+        dx > threshold -> "Move Right"
+        dx < -threshold -> "Move Left"
+        else -> ""
+    }
+
+    val vertical = when {
+        dy > threshold -> "Move Down"
+        dy < -threshold -> "Move Up"
+        else -> ""
+    }
+
+    return listOf(horizontal, vertical)
+        .filter { it.isNotEmpty() }
+        .joinToString(" & ")
+        .ifEmpty { "Centered" }
+}
+
+fun getDistanceHint(areaRatio: Float): String {
+    return when {
+        areaRatio < 0.5 -> "Move Closer"
+        areaRatio > 1.5 -> "Move Back"
+        else -> "Good Distance"
+    }
+}
+
+fun generateInstruction(best: Detection, focusBox: RectF): String {
+    val dx = best.rect.centerX() - focusBox.centerX()
+    val dy = best.rect.centerY() - focusBox.centerY()
+
+    val direction = getDirection(dx, dy, threshold = 20f)
+
+    val areaRatio = (best.rect.width() * best.rect.height()) /
+            (focusBox.width() * focusBox.height())
+
+    val distance = getDistanceHint(areaRatio)
+
+    return when {
+        direction == "Centered" && distance == "Good Distance" -> "Perfect Alignment ✅"
+        direction == "Centered" -> distance
+        else -> "$direction + $distance"
+    }
+}
+fun generateAlignmentVector(
+    best: Detection,
+    focusBox: RectF
+): AlignmentVector {
+
+    val dx = best.rect.centerX() - focusBox.centerX()
+    val dy = best.rect.centerY() - focusBox.centerY()
+
+    // normalized horizontal / vertical
+    val h = dx / focusBox.width()
+    val v = dy / focusBox.height()
+
+    // depth using area ratio (log makes it stable)
+    val areaRatio =
+        (best.rect.width() * best.rect.height()) /
+                (focusBox.width() * focusBox.height())
+
+    val z =Math.log(areaRatio.toDouble()).toFloat()
+
+    return AlignmentVector(
+        h = h,
+        v = v,
+        z = z
+    )
+}
+
+fun distance(
+    x1: Float, y1: Float,
+    x2: Float, y2: Float
+): Float {
+    val dx = x2 - x1
+    val dy = y2 - y1
+    return kotlin.math.sqrt(dx * dx + dy * dy)
+}
+
+fun imageToScreenRect(
+    rect: RectF,
+    screenW: Float,
+    screenH: Float,
+    imageW: Float,
+    imageH: Float
+): RectF {
+
+    val scaleX = screenW / imageW
+    val scaleY = screenH / imageH
+
+    return RectF(
+        rect.left * scaleX,
+        rect.top * scaleY,
+        rect.right * scaleX,
+        rect.bottom * scaleY
     )
 }

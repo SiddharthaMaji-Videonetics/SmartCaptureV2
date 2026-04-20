@@ -5,8 +5,13 @@ import android.graphics.RectF
 import android.util.Log
 import androidx.core.graphics.toRect
 import androidx.lifecycle.ViewModel
+import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.filterInside
+import com.videonatics.smartcapture.core.findBestBox
+import com.videonatics.smartcapture.core.generateAlignmentVector
+import com.videonatics.smartcapture.core.generateInstruction
+import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +29,11 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     private var _focusBox: RectF? =null
     private var _objectInsideFocusBoxCount = MutableStateFlow(0)
     val objectInsideFocusBoxCount: Flow<Int> = _objectInsideFocusBoxCount
+
+    private var _inst = MutableStateFlow<AlignmentVector?>(null)
+    val inst: Flow<AlignmentVector?> = _inst
     fun setDetection(detections: List<Detection>) {
+
         _detectionList.clear()
         _detectionList.addAll(detections)
 
@@ -37,6 +46,16 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
         Log.e("box1", _focusBox.toString())
         Log.e("box2", _detectionList.map { it.rect }.toString())
+
+        val destDetection = findBestBox(_detectionList,_focusBox!!)
+        destDetection?.apply {
+            val inst = generateInstruction(destDetection,_focusBox!!)
+
+            val hint = generateAlignmentVector(destDetection, _focusBox!!)
+            _inst.value = hint
+            Log.e("instruction", inst+"($hint)")
+        }
+
 
         val insideRects = _detectionList.map { it.rect.toRect() }.filterInside(_focusBox?.toRect()!!)
 
