@@ -1,5 +1,6 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
+import android.Manifest
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -45,6 +46,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadLabels
@@ -60,13 +65,12 @@ import kotlinx.coroutines.launch
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val labels = loadLabels(context)
-
     val viewModel = hiltViewModel<CaptureViewModel>()
-
     val objectInsideFocusBoxCount = viewModel.objectInsideFocusBoxCount.collectAsState(0)
 
     val (interpreter, gpuDelegate) = remember {
@@ -92,44 +96,62 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 
         Pair(interpreter, delegate)
     }
+    val cameraPermissionState = rememberPermissionState(
+        permission = Manifest.permission.CAMERA
+    )
+    LaunchedEffect(Unit) {
+        cameraPermissionState.launchPermissionRequest()
+    }
+    when {
+        cameraPermissionState.status.isGranted -> {
+            CapturePageComponent(
+                interpreter = interpreter,
+                objectInBoxCount = objectInsideFocusBoxCount.value,
+                updateCanvasSize ={w,h->
+                    viewModel.updateCanvasSize(w, h)
+                },
+                onFocusRectRect = {
+                    viewModel.setFocusBox(it)
+                }
+            ){
 
+
+
+                val text = buildString {
+                    appendLine("Detected ${it.size} object(s):\n")
+
+                    it.forEach {
+                        val label = labels[it.classId]
+                        appendLine(
+                            "$label → ${"%.2f".format(it.score)} | " +
+                                    "[${it.rect.left.toInt()}, ${it.rect.top.toInt()}, " +
+                                    "${it.rect.right.toInt()}, ${it.rect.bottom.toInt()}]"
+                        )
+                    }
+                }
+
+                viewModel.setDetection(it)
+                Log.e("detection", text)
+
+                //onResult(prep.paddedBitmap, text, final)
+            }
+        }
+
+        cameraPermissionState.status.shouldShowRationale -> {
+            Text("Camera permission is required")
+        }
+
+        else -> {
+            Text("Requesting permission...")
+        }
+    }
     DisposableEffect(Unit) {
         onDispose {
             interpreter.close()
             gpuDelegate?.close()
         }
     }
-    CapturePageComponent(
-        interpreter = interpreter,
-        objectInBoxCount = objectInsideFocusBoxCount.value,
-        updateCanvasSize ={w,h->
-            viewModel.updateCanvasSize(w, h)
-        },
-        onFocusRectRect = {
-            viewModel.setFocusBox(it)
-        }
-    ){
 
-
-
-        val text = buildString {
-            appendLine("Detected ${it.size} object(s):\n")
-
-            it.forEach {
-                val label = labels[it.classId]
-                appendLine(
-                    "$label → ${"%.2f".format(it.score)} | " +
-                            "[${it.rect.left.toInt()}, ${it.rect.top.toInt()}, " +
-                            "${it.rect.right.toInt()}, ${it.rect.bottom.toInt()}]"
-                )
-            }
-        }
-
-        viewModel.setDetection(it)
-        Log.e("detection", text)
-
-        //onResult(prep.paddedBitmap, text, final)
-    }
 }
 
 @Composable

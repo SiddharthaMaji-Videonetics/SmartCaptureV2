@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,11 +40,16 @@ fun CameraPreviewWithImageProxy(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        }
+    }
+
     val cameraProviderFuture = remember {
         ProcessCameraProvider.getInstance(context)
     }
 
-    //  Keep executor stable
     val executor = remember { Executors.newSingleThreadExecutor() }
 
     DisposableEffect(Unit) {
@@ -52,74 +58,63 @@ fun CameraPreviewWithImageProxy(
         }
     }
 
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
+    LaunchedEffect(Unit) {
+        val cameraProvider = cameraProviderFuture.get()
 
-            val previewView = PreviewView(ctx).apply {
-                //  FULLSCREEN
-                scaleType = PreviewView.ScaleType.FILL_CENTER
+        val preview = Preview.Builder().build().apply {
+            surfaceProvider = previewView.surfaceProvider
+        }
+
+        var lastFrameTime = 0L
+        var resolutionSent = false
+
+        val imageAnalyzer = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+
+        imageAnalyzer.setAnalyzer(executor) { imageProxy ->
+
+            val now = System.currentTimeMillis()
+
+            if (!resolutionSent) {
+                onResolution(imageProxy.width, imageProxy.height)
+                resolutionSent = true
             }
 
-            cameraProviderFuture.addListener({
-
-                val cameraProvider = cameraProviderFuture.get()
-
-                val preview = Preview.Builder().build().apply {
-                    surfaceProvider = previewView.surfaceProvider
-                }
-
-                var lastFrameTime = 0L
-                var resolutionSent = false
-
-                val imageAnalyzer = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-
-                imageAnalyzer.setAnalyzer(executor) { imageProxy ->
-
-                    val now = System.currentTimeMillis()
-
-                    //  Send resolution only once
-                    if (!resolutionSent) {
-                        onResolution(imageProxy.width, imageProxy.height)
-                        resolutionSent = true
-                    }
-
-                    if (now - lastFrameTime >= frameIntervalMs) {
-                        try {
-                            onFrame(imageProxy)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        } finally {
-                            imageProxy.close() //  ALWAYS
-                        }
-                        lastFrameTime = now
-                    } else {
-                        imageProxy.close()
-                    }
-                }
-
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
+            if (now - lastFrameTime >= frameIntervalMs) {
                 try {
-                    cameraProvider.unbindAll()
-
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageAnalyzer
-                    )
-
+                    onFrame(imageProxy)
                 } catch (e: Exception) {
                     e.printStackTrace()
+                } finally {
+                    imageProxy.close()
                 }
-
-            }, ContextCompat.getMainExecutor(ctx))
-
-            previewView
+                lastFrameTime = now
+            } else {
+                imageProxy.close()
+            }
         }
+
+        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+        try {
+            cameraProvider.unbindAll()
+
+            cameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                cameraSelector,
+                preview,
+                imageAnalyzer
+            )
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { previewView }
     )
 }
 
