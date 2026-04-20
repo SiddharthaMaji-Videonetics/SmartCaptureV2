@@ -281,7 +281,7 @@ fun InstructionGuideOverlay(
     // -------------------------
 
     val zoomHint = when {
-        instruction.z < -1 -> "Move Closer"
+        instruction.z < -1.5 -> "Move Closer"
         instruction.z > 0-> "Move Away"
         else -> null
     }

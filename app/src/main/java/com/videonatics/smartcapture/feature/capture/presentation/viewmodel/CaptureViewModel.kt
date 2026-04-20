@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.feature.capture.presentation.viewmodel
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
+import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.toRect
 import androidx.lifecycle.ViewModel
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
