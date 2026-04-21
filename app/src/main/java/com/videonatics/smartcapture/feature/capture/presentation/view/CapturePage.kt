@@ -161,7 +161,7 @@ fun CapturePage(
                     }
                 ) { detections ->
 
-                    // ❌ removed heavy logging per frame
+                    //removed heavy logging per frame
                     viewModel.setDetection(detections)
                 }
 
