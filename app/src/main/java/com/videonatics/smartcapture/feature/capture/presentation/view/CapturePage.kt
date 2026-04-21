@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -66,126 +67,135 @@ import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
+fun CapturePage(
+    navController: NavController,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
-    val labels = loadLabels(context)
     val viewModel = hiltViewModel<CaptureViewModel>()
+
     var isLiveCapturing by remember { mutableStateOf(true) }
-    val instruction = viewModel.inst.collectAsState(null)
-    val focusedObj = viewModel.focusedObj.collectAsState(null)
-    val isCapturable = viewModel.isCapturable.collectAsState(false)
-    val captureTrigger = viewModel.captureTrigger.collectAsState(false)
 
-    val (interpreter, gpuDelegate) = remember {
-        val options = Interpreter.Options()
-        var delegate: GpuDelegate? = null
-        try {
-            delegate = GpuDelegate()
-            options.addDelegate(delegate)
-        } catch (e: Exception) {
-            e.printStackTrace()
+    val instruction by viewModel.inst.collectAsState(null)
+    val focusedObj by viewModel.focusedObj.collectAsState(null)
+    val isCapturable by viewModel.isCapturable.collectAsState(false)
+    val captureTrigger by viewModel.captureTrigger.collectAsState(false)
+
+    // 🔥 Model + GPU (async loading)
+    var interpreter by remember { mutableStateOf<Interpreter?>(null) }
+    var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.Default) {
+
+            val options = Interpreter.Options()
+            var delegate: GpuDelegate? = null
+
+            try {
+                delegate = GpuDelegate()
+                options.addDelegate(delegate)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            val model = loadModelFile(context, "model1.tflite")
+            val interp = Interpreter(model, options)
+
+            withContext(Dispatchers.Main) {
+                interpreter = interp
+                gpuDelegate = delegate
+            }
         }
-
-        val model = loadModelFile(context, "model1.tflite")
-        val interpreter = Interpreter(model, options)
-
-        val inputTensor = interpreter.getInputTensor(0)
-        val outputTensor = interpreter.getOutputTensor(0)
-
-        Log.d("CapturePage", "Input shape: ${inputTensor.shape().contentToString()}")
-        Log.d("CapturePage", "Input type: ${inputTensor.dataType()}")
-        Log.d("CapturePage", "Output shape: ${outputTensor.shape().contentToString()}")
-        Log.d("CapturePage", "Output type: ${outputTensor.dataType()}")
-
-        Pair(interpreter, delegate)
     }
-    val cameraPermissionState = rememberPermissionState(
-        permission = Manifest.permission.CAMERA
-    )
+
+    // 🔐 Camera permission
+    val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+
     LaunchedEffect(Unit) {
         cameraPermissionState.launchPermissionRequest()
     }
+
+    // ⏳ Loading state
+    if (interpreter == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val labels = remember { loadLabels(context) }
+
     when {
         cameraPermissionState.status.isGranted -> {
 
-            AnimatedContent(
-                targetState = isLiveCapturing
-            ) {
-                if(it){
-                    CapturePageComponent(
-                        interpreter = interpreter,
-                        focusedObj = focusedObj.value,
-                        inst = instruction.value,
-                        captureTrigger = captureTrigger.value,
-                        isCapturable = isCapturable.value,
-                        onCaptureImage = {
-                            viewModel.captureImage()
-                        },
-                        onFullImageCapture = {
-                            viewModel.saveToRecentSnaps(it)
-                            isLiveCapturing = false
-                        },
-                        updateCanvasSize ={w,h->
-                            viewModel.updateCanvasSize(w, h)
-                        },
-                        onFocusRectRect = {
-                            viewModel.setFocusBox(it)
-                        }
-                    ){
+            if (isLiveCapturing) {
 
-
-
-                        val text = buildString {
-                            appendLine("Detected ${it.size} object(s):\n")
-
-                            it.forEach {
-                                val label = labels[it.classId]
-                                appendLine(
-                                    "$label → ${"%.2f".format(it.score)} | " +
-                                            "[${it.rect.left.toInt()}, ${it.rect.top.toInt()}, " +
-                                            "${it.rect.right.toInt()}, ${it.rect.bottom.toInt()}]"
-                                )
-                            }
-                        }
-
-                        viewModel.setDetection(it)
-                        Log.e("detection", text)
-
-                        //onResult(prep.paddedBitmap, text, final)
+                CapturePageComponent(
+                    interpreter = interpreter!!,
+                    focusedObj = focusedObj,
+                    inst = instruction,
+                    captureTrigger = captureTrigger,
+                    isCapturable = isCapturable,
+                    onCaptureImage = {
+                        viewModel.captureImage()
+                    },
+                    onFullImageCapture = {
+                        viewModel.saveToRecentSnaps(it)
+                        isLiveCapturing = false
+                    },
+                    updateCanvasSize = { w, h ->
+                        viewModel.updateCanvasSize(w, h)
+                    },
+                    onFocusRectRect = {
+                        viewModel.setFocusBox(it)
                     }
-                }else{
-                    ImageAnalysisPageComponent(
-                        capturedImage = viewModel.capturedImage()
-                    ){
-                        isLiveCapturing = true
-                    }
+                ) { detections ->
+
+                    // ❌ removed heavy logging per frame
+                    viewModel.setDetection(detections)
+                }
+
+            } else {
+
+                ImageAnalysisPageComponent(
+                    capturedImage = viewModel.capturedImage()
+                ) {
+                    isLiveCapturing = true
                 }
             }
-
         }
 
         cameraPermissionState.status.shouldShowRationale -> {
-            Text("Camera permission is required")
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Camera permission is required")
+            }
         }
 
         else -> {
-            Text("Requesting permission...")
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Requesting permission...")
+            }
         }
     }
+
+    // 🧹 Cleanup
     DisposableEffect(Unit) {
         onDispose {
-            interpreter.close()
+            interpreter?.close()
             gpuDelegate?.close()
         }
     }
-
 }
-
 @Composable
 fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
