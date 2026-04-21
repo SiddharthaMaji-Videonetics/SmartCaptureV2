@@ -1,31 +1,17 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
 import android.Manifest
-import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.Matrix
-import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
-import androidx.camera.core.ImageProxy
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
@@ -43,13 +29,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -65,7 +48,9 @@ import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
+import com.videonatics.smartcapture.feature.details.presentation.view.ImageAnalysisPageComponent
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -76,12 +61,11 @@ import org.tensorflow.lite.gpu.GpuDelegate
 @Composable
 fun CapturePage(
     navController: NavController,
+    sharedViewModel: SharedCoreViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val viewModel = hiltViewModel<CaptureViewModel>()
-
-    var isLiveCapturing by remember { mutableStateOf(true) }
 
     val instruction by viewModel.inst.collectAsState(null)
     val focusedObj by viewModel.focusedObj.collectAsState(null)
@@ -137,9 +121,6 @@ fun CapturePage(
 
     when {
         cameraPermissionState.status.isGranted -> {
-
-            if (isLiveCapturing) {
-
                 CapturePageComponent(
                     interpreter = interpreter!!,
                     focusedObj = focusedObj,
@@ -150,14 +131,20 @@ fun CapturePage(
                         viewModel.captureImage()
                     },
                     onFullImageCapture = {
-                        viewModel.saveToRecentSnaps(it)
-                        isLiveCapturing = false
+                        viewModel.captureReset()
+                        sharedViewModel.saveCapturedImage(it)
+                        focusedObj?.apply {
+                            sharedViewModel.saveCapturedImageBoundBox(this)
+
+                        }
+                        navController.navigate("image_details")
                     },
                     updateCanvasSize = { w, h ->
                         viewModel.updateCanvasSize(w, h)
                     },
                     onFocusRectRect = {
                         viewModel.setFocusBox(it)
+
                     }
                 ) { detections ->
 
@@ -165,14 +152,7 @@ fun CapturePage(
                     viewModel.setDetection(detections)
                 }
 
-            } else {
 
-                ImageAnalysisPageComponent(
-                    capturedImage = viewModel.capturedImage()
-                ) {
-                    isLiveCapturing = true
-                }
-            }
         }
 
         cameraPermissionState.status.shouldShowRationale -> {
@@ -298,6 +278,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                         onDetectionChanges.invoke(merged)
                                         imageWidth = prep.srcWidth.toFloat()
                                         imageHeight = prep.srcHeight.toFloat()
+                                    Log.e("img","w=${imageProxy.width}, h=${imageProxy.height}")
                                    // }
 
                                 } catch (e: Exception) {

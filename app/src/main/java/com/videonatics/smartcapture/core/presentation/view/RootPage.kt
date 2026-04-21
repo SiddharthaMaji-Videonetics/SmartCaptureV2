@@ -10,6 +10,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
+import com.videonatics.smartcapture.feature.details.presentation.view.CaptureDetailsPage
 import com.videonatics.smartcapture.feature.home.presentation.view.HomePage
 import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
 import com.videonatics.smartcapture.feature.splash.presentation.view.SplashPage
@@ -52,9 +53,19 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
                 val sharedViewModel: SharedCoreViewModel =
                     hiltViewModel(parentEntry)
-                CapturePage(navController)
+                CapturePage(navController, sharedViewModel)
             }
 
+
+            composable(PageRoute.IMAGE_DETAILS.name) {
+
+                val parentEntry = remember(it) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel =
+                    hiltViewModel(parentEntry)
+                CaptureDetailsPage(navController = navController, sharedViewModel = sharedViewModel)
+            }
 
             composable(PageRoute.SETTINGS.name) {
                 val parentEntry = remember(it) {

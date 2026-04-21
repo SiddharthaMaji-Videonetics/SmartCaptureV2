@@ -43,7 +43,7 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     var captureTrigger = _captureTrigger
 
 
-    private var capturedImage: Bitmap? = null
+
 
     fun setDetection(detections: List<Detection>) {
 
@@ -100,12 +100,8 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
         _captureTrigger.value = true
     }
 
-    fun capturedImage(): Bitmap? {
-        return capturedImage
-    }
-
-    fun saveToRecentSnaps(bmp: Bitmap) {
-        capturedImage = bmp
+    fun captureReset() {
+        _captureTrigger.value = false
     }
 
 }
