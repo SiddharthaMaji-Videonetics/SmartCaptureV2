@@ -64,13 +64,8 @@ import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
-import com.videonatics.smartcapture.core.toBitmap
-import com.videonatics.smartcapture.core.toFrameData
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
 
@@ -80,10 +75,12 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val labels = loadLabels(context)
     val viewModel = hiltViewModel<CaptureViewModel>()
-
+    var isLiveCapturing by remember { mutableStateOf(true) }
     val instruction = viewModel.inst.collectAsState(null)
     val focusedObj = viewModel.focusedObj.collectAsState(null)
     val isCapturable = viewModel.isCapturable.collectAsState(false)
+    val captureTrigger = viewModel.captureTrigger.collectAsState(false)
+
     val (interpreter, gpuDelegate) = remember {
         val options = Interpreter.Options()
         var delegate: GpuDelegate? = null
@@ -115,39 +112,59 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     }
     when {
         cameraPermissionState.status.isGranted -> {
-            CapturePageComponent(
-                interpreter = interpreter,
-                focusedObj = focusedObj.value,
-                inst = instruction.value,
-                isCapturable = isCapturable.value,
-                updateCanvasSize ={w,h->
-                    viewModel.updateCanvasSize(w, h)
-                },
-                onFocusRectRect = {
-                    viewModel.setFocusBox(it)
-                }
-            ){
+
+            AnimatedContent(
+                targetState = isLiveCapturing
+            ) {
+                if(it){
+                    CapturePageComponent(
+                        interpreter = interpreter,
+                        focusedObj = focusedObj.value,
+                        inst = instruction.value,
+                        captureTrigger = captureTrigger.value,
+                        isCapturable = isCapturable.value,
+                        onCaptureImage = {
+                            viewModel.captureImage()
+                        },
+                        onFullImageCapture = {
+                            viewModel.saveToRecentSnaps(it)
+                            isLiveCapturing = false
+                        },
+                        updateCanvasSize ={w,h->
+                            viewModel.updateCanvasSize(w, h)
+                        },
+                        onFocusRectRect = {
+                            viewModel.setFocusBox(it)
+                        }
+                    ){
 
 
 
-                val text = buildString {
-                    appendLine("Detected ${it.size} object(s):\n")
+                        val text = buildString {
+                            appendLine("Detected ${it.size} object(s):\n")
 
-                    it.forEach {
-                        val label = labels[it.classId]
-                        appendLine(
-                            "$label → ${"%.2f".format(it.score)} | " +
-                                    "[${it.rect.left.toInt()}, ${it.rect.top.toInt()}, " +
-                                    "${it.rect.right.toInt()}, ${it.rect.bottom.toInt()}]"
-                        )
+                            it.forEach {
+                                val label = labels[it.classId]
+                                appendLine(
+                                    "$label → ${"%.2f".format(it.score)} | " +
+                                            "[${it.rect.left.toInt()}, ${it.rect.top.toInt()}, " +
+                                            "${it.rect.right.toInt()}, ${it.rect.bottom.toInt()}]"
+                                )
+                            }
+                        }
+
+                        viewModel.setDetection(it)
+                        Log.e("detection", text)
+
+                        //onResult(prep.paddedBitmap, text, final)
                     }
+                }else{
+                    ImageAnalysisPageComponent(
+                        capturedImage = viewModel.capturedImage()
+                    )
                 }
-
-                viewModel.setDetection(it)
-                Log.e("detection", text)
-
-                //onResult(prep.paddedBitmap, text, final)
             }
+
         }
 
         cameraPermissionState.status.shouldShowRationale -> {
@@ -171,15 +188,18 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
                          focusedObj: RectF? = null,
+                         captureTrigger: Boolean = false,
                          inst: AlignmentVector? = null,
                          isCapturable: Boolean = false,
+                         onFullImageCapture:(Bitmap)-> Unit ={},
+                         onCaptureImage:()-> Unit ={},
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             AnimatedVisibility(visible = isCapturable) {
                 FloatingActionButton(onClick = {
-
+                    onCaptureImage.invoke()
                 }) {
                     Icon(painterResource(R.drawable.ic_camera),
                         contentDescription = "Edit Bounding box",)
@@ -192,9 +212,11 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
             CameraDetectionView(interpreter,
                 focusedObj,
+                captureTrigger,
                 inst,
                 updateCanvasSize,
                 onFocusRectRect,
+                onFullImageCapture = onFullImageCapture,
                 onDetectionChanges)
         }
 
@@ -204,9 +226,11 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
 @Composable
 fun CameraDetectionView(interpreter: Interpreter?,
                         focusedObj: RectF? = null,
+                        captureTrigger: Boolean,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
+                        onFullImageCapture:(Bitmap)-> Unit ={},
                         onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
@@ -227,6 +251,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                 ) {
                     var isProcessing = false
                     CameraPreviewWithImageProxy(
+                        captureTrigger = captureTrigger,
                         frameIntervalMs = 500,
                         onFrame = { imageProxy ->
                             if (isProcessing) {
@@ -235,7 +260,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             }
 
                             isProcessing = true
-
                            //Async processing
                             //scope.launch(Dispatchers.Default) {
                                 try {
@@ -271,6 +295,9 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                     imageProxy.close()
                                 }
                             //}
+                        },
+                        onFullImageCapture = {
+                            onFullImageCapture.invoke(it)
                         }
                     )
                     BoundingBoxOverlay(

@@ -1,8 +1,12 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
+import android.graphics.Bitmap
 import android.graphics.RectF
+import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -42,18 +46,21 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
+import com.videonatics.smartcapture.core.imageProxyToBitmap
 import java.util.concurrent.Executors
 
 @Composable
 fun CameraPreviewWithImageProxy(
     modifier: Modifier = Modifier,
+    captureTrigger: Boolean = false,
     frameIntervalMs: Long = 150L,
     onFrame: (ImageProxy) -> Unit,
+    onFullImageCapture:(Bitmap) -> Unit,
     onResolution: (width: Int, height: Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -65,6 +72,30 @@ fun CameraPreviewWithImageProxy(
     }
 
     val executor = remember { Executors.newSingleThreadExecutor() }
+
+
+    LaunchedEffect(captureTrigger) {
+        if (captureTrigger) {
+            val executor = ContextCompat.getMainExecutor(context)
+
+            imageCapture?.takePicture(
+                executor,
+                object : ImageCapture.OnImageCapturedCallback() {
+
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        val bitmap = imageProxyToBitmap(image)
+                        onFullImageCapture(bitmap)
+
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                       exception.printStackTrace()
+                        Log.e("CameraPreview", "Error capturing image: ${exception.message}")
+                    }
+                }
+            )
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -82,9 +113,13 @@ fun CameraPreviewWithImageProxy(
         var lastFrameTime = 0L
         var resolutionSent = false
 
+
+
         val imageAnalyzer = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
+
+
 
         imageAnalyzer.setAnalyzer(executor) { imageProxy ->
 
@@ -110,7 +145,11 @@ fun CameraPreviewWithImageProxy(
         }
 
         val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+        val capture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .build()
 
+        imageCapture = capture
         try {
             cameraProvider.unbindAll()
 
@@ -118,7 +157,8 @@ fun CameraPreviewWithImageProxy(
                 lifecycleOwner,
                 cameraSelector,
                 preview,
-                imageAnalyzer
+                imageAnalyzer,
+                capture
             )
 
         } catch (e: Exception) {

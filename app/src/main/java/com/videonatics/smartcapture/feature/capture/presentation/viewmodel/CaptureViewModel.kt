@@ -1,8 +1,10 @@
 package com.videonatics.smartcapture.feature.capture.presentation.viewmodel
 
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.Log
+import androidx.camera.core.ImageProxy
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.toRect
 import androidx.lifecycle.ViewModel
@@ -23,13 +25,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class CaptureViewModel @Inject constructor() : ViewModel(){
     private var canvasWidth: Float = 0f
     private var canvasHeight: Float = 0f
-    private var imageWidth: Float = 0f
-    private var imageHeight: Float = 0f
 
     private val _detectionList = ArrayList<Detection>()
     private var _focusBox: RectF? =null
     private var _objectInsideFocusBoxCount = MutableStateFlow(0)
-    val objectInsideFocusBoxCount: Flow<Int> = _objectInsideFocusBoxCount
 
     private var _inst = MutableStateFlow<AlignmentVector?>(null)
     val inst: Flow<AlignmentVector?> = _inst
@@ -39,6 +38,13 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
     private var _isCapturable = MutableStateFlow<Boolean>(false)
     var isCapturable = _isCapturable
+
+    private var _captureTrigger = MutableStateFlow<Boolean>(false)
+    var captureTrigger = _captureTrigger
+
+
+    private var capturedImage: Bitmap? = null
+
     fun setDetection(detections: List<Detection>) {
 
         _detectionList.clear()
@@ -61,7 +67,7 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
             val hint = generateAlignmentVector(destDetection, _focusBox!!)
 
-            if(hint.z <=0 && hint.z >=-1.5 && hint.h <=0.02 && hint.v <=0.02){
+            if(hint.z <=0 && hint.z >=-1.5 && (hint.h >=-0.02 && hint.h <= 0.02) && (hint.v >=-0.02 && hint.v <= 0.02)){
                 _isCapturable.value = true
             }else{
                 _isCapturable.value = false
@@ -88,6 +94,18 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
         canvasWidth = w
         canvasHeight = h
+    }
+
+    fun captureImage() {
+        _captureTrigger.value = true
+    }
+
+    fun capturedImage(): Bitmap? {
+        return capturedImage
+    }
+
+    fun saveToRecentSnaps(bmp: Bitmap) {
+        capturedImage = bmp
     }
 
 }

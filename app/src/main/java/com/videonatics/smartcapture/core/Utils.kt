@@ -3,21 +3,18 @@ package com.videonatics.smartcapture.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.RectF
 import android.graphics.YuvImage
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.impl.utils.MatrixExt.postRotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
-import com.videonatics.smartcapture.core.domain.model.FrameData
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
 import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
 import java.io.ByteArrayOutputStream
@@ -29,33 +26,12 @@ import java.nio.channels.FileChannel
 import kotlin.math.abs
 
 fun ImageProxy.toBitmap(): Bitmap? {
-    val yBuffer = planes[0].buffer
-    val uBuffer = planes[1].buffer
-    val vBuffer = planes[2].buffer
-
-    val ySize = yBuffer.remaining()
-    val uSize = uBuffer.remaining()
-    val vSize = vBuffer.remaining()
-
-    val nv21 = ByteArray(ySize + uSize + vSize)
-
-    yBuffer.get(nv21, 0, ySize)
-    vBuffer.get(nv21, ySize, vSize)
-    uBuffer.get(nv21, ySize + vSize, uSize)
-
-    val yuvImage = YuvImage(
-        nv21,
-        ImageFormat.NV21,
-        width,
-        height,
+    return try {
+        imageProxyToBitmap(this)
+    } catch (e: Exception) {
+        e.printStackTrace()
         null
-    )
-
-    val out = ByteArrayOutputStream()
-    yuvImage.compressToJpeg(android.graphics.Rect(0, 0, width, height), 80, out)
-
-    val imageBytes = out.toByteArray()
-    return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+    }
 }
 
 fun loadModelFile(context: Context, modelName: String): MappedByteBuffer {
@@ -73,8 +49,6 @@ fun loadModelFile(context: Context, modelName: String): MappedByteBuffer {
     )
 }
 
-
-
 fun preprocess(
     image: ImageProxy,
     size: Int = 416
@@ -82,7 +56,6 @@ fun preprocess(
 
     val rotation = image.imageInfo.rotationDegrees
 
-    //  Rotated source dimensions (what model sees)
     val srcW = if (rotation == 90 || rotation == 270) image.height else image.width
     val srcH = if (rotation == 90 || rotation == 270) image.width else image.height
 
@@ -104,22 +77,21 @@ fun preprocess(
     val g = FloatArray(total) { pad }
     val b = FloatArray(total) { pad }
 
-    val yPlane = image.planes[0].buffer
-    val uPlane = image.planes[1].buffer
-    val vPlane = image.planes[2].buffer
+    val planes = image.planes
+    val yPlane = planes[0].buffer
+    val uPlane = if (planes.size > 1) planes[1].buffer else null
+    val vPlane = if (planes.size > 2) planes[2].buffer else null
 
-    val yRowStride = image.planes[0].rowStride
-    val uvRowStride = image.planes[1].rowStride
-    val uvPixelStride = image.planes[1].pixelStride
+    val yRowStride = planes[0].rowStride
+    val uvRowStride = if (planes.size > 1) planes[1].rowStride else 0
+    val uvPixelStride = if (planes.size > 1) planes[1].pixelStride else 0
 
     for (y in 0 until newH) {
         for (x in 0 until newW) {
 
-            // 🔹 Map to rotated space
             val srcXr = (x / ratio).toInt().coerceIn(0, srcW - 1)
             val srcYr = (y / ratio).toInt().coerceIn(0, srcH - 1)
 
-            // 🔹 Map rotated → sensor space (FIXED)
             val (srcX, srcY) = when (rotation) {
                 90 -> Pair(srcYr, image.height - srcXr - 1)
                 180 -> Pair(image.width - srcXr - 1, image.height - srcYr - 1)
@@ -127,27 +99,34 @@ fun preprocess(
                 else -> Pair(srcXr, srcYr)
             }
 
-            // 🔹 Safety bounds
             if (srcX !in 0 until image.width || srcY !in 0 until image.height) continue
 
             val yIndex = srcY * yRowStride + srcX
-            val uvIndex = (srcY / 2) * uvRowStride + (srcX / 2) * uvPixelStride
-
             val Y = (yPlane.get(yIndex).toInt() and 0xFF)
-            val U = (uPlane.get(uvIndex).toInt() and 0xFF)
-            val V = (vPlane.get(uvIndex).toInt() and 0xFF)
+            
+            var rVal: Float
+            var gVal: Float
+            var bVal: Float
 
-            // 🔹 YUV → RGB
-            var rVal = Y + 1.370705f * (V - 128)
-            var gVal = Y - 0.337633f * (U - 128) - 0.698001f * (V - 128)
-            var bVal = Y + 1.732446f * (U - 128)
+            if (uPlane != null && vPlane != null) {
+                val uvIndex = (srcY / 2) * uvRowStride + (srcX / 2) * uvPixelStride
+                val U = (uPlane.get(uvIndex).toInt() and 0xFF)
+                val V = (vPlane.get(uvIndex).toInt() and 0xFF)
+
+                rVal = Y + 1.370705f * (V - 128)
+                gVal = Y - 0.337633f * (U - 128) - 0.698001f * (V - 128)
+                bVal = Y + 1.732446f * (U - 128)
+            } else {
+                rVal = Y.toFloat()
+                gVal = Y.toFloat()
+                bVal = Y.toFloat()
+            }
 
             rVal = rVal.coerceIn(0f, 255f)
             gVal = gVal.coerceIn(0f, 255f)
             bVal = bVal.coerceIn(0f, 255f)
 
             val px = ((y + dy.toInt()) * size + (x + dx.toInt()))
-
             if (px !in 0 until total) continue
 
             r[px] = rVal
@@ -156,7 +135,6 @@ fun preprocess(
         }
     }
 
-    // 🔹 CHW (BGR)
     b.forEach { buffer.putFloat(it) }
     g.forEach { buffer.putFloat(it) }
     r.forEach { buffer.putFloat(it) }
@@ -173,17 +151,14 @@ fun preprocess(
 }
 
 fun parseOutput(
-    output: Array<Array<FloatArray>>, // [1, 3549, 9]
+    output: Array<Array<FloatArray>>,
     ratio: Float,
     dx: Float,
     dy: Float,
     confThreshold: Float = 0.3f
 ): List<Detection> {
-
     val detections = mutableListOf<Detection>()
-
     for (row in output[0]) {
-
         val cx = row[0]
         val cy = row[1]
         val w = row[2]
@@ -203,17 +178,13 @@ fun parseOutput(
 
         if (bestScore < confThreshold) continue
 
-        //Correct mapping back to original image
         val x1 = ((cx - w / 2f) - dx) / ratio
         val y1 = ((cy - h / 2f) - dy) / ratio
         val x2 = ((cx + w / 2f) - dx) / ratio
         val y2 = ((cy + h / 2f) - dy) / ratio
 
-        detections.add(
-            Detection(RectF(x1, y1, x2, y2), bestScore, bestClass)
-        )
+        detections.add(Detection(RectF(x1, y1, x2, y2), bestScore, bestClass))
     }
-
     return detections
 }
 
@@ -236,17 +207,14 @@ fun nmsPerClass(
     detections: List<Detection>,
     iouThreshold: Float = 0.45f
 ): List<Detection> {
-
     val result = mutableListOf<Detection>()
     val grouped = detections.groupBy { it.classId }
 
     for ((_, dets) in grouped) {
         val sorted = dets.sortedByDescending { it.score }.toMutableList()
-
         while (sorted.isNotEmpty()) {
             val best = sorted.removeAt(0)
             result.add(best)
-
             val it = sorted.iterator()
             while (it.hasNext()) {
                 if (iou(best.rect, it.next().rect) > iouThreshold) {
@@ -255,7 +223,6 @@ fun nmsPerClass(
             }
         }
     }
-
     return result
 }
 
@@ -271,38 +238,16 @@ fun rotateRect(
     imageHeight: Float,
     rotationDegrees: Int
 ): RectF {
-
     return when (rotationDegrees) {
-
         0 -> rect
-
-        90 -> RectF(
-            rect.top,
-            imageWidth - rect.right,
-            rect.bottom,
-            imageWidth - rect.left
-        )
-
-        180 -> RectF(
-            imageWidth - rect.right,
-            imageHeight - rect.bottom,
-            imageWidth - rect.left,
-            imageHeight - rect.top
-        )
-
-        270 -> RectF(
-            imageHeight - rect.bottom,
-            rect.left,
-            imageHeight - rect.top,
-            rect.right
-        )
-
+        90 -> RectF(rect.top, imageWidth - rect.right, rect.bottom, imageWidth - rect.left)
+        180 -> RectF(imageWidth - rect.right, imageHeight - rect.bottom, imageWidth - rect.left, imageHeight - rect.top)
+        270 -> RectF(imageHeight - rect.bottom, rect.left, imageHeight - rect.top, rect.right)
         else -> rect
     }
 }
 
 fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
-
     val nearLeft = abs(touch.x - rect.left) <= threshold
     val nearRight = abs(touch.x - rect.right) <= threshold
     val nearTop = abs(touch.y - rect.top) <= threshold
@@ -318,12 +263,10 @@ fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
         nearRight && nearTop -> DragMode.TOP_RIGHT
         nearLeft && nearBottom -> DragMode.BOTTOM_LEFT
         nearRight && nearBottom -> DragMode.BOTTOM_RIGHT
-
         nearLeft -> DragMode.LEFT
         nearRight -> DragMode.RIGHT
         nearTop -> DragMode.TOP
         nearBottom -> DragMode.BOTTOM
-
         isInside -> DragMode.MOVE
         else -> DragMode.NONE
     }
@@ -331,14 +274,12 @@ fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
 
 fun DrawScope.drawHandles(rect: Rect, size: Float) {
     val radius = size / 2
-
     listOf(
         Offset(rect.left, rect.top),
         Offset(rect.right, rect.top),
         Offset(rect.left, rect.bottom),
         Offset(rect.right, rect.bottom)
     ).forEach { center ->
-
         drawCircle(
             color = androidx.compose.ui.graphics.Color.Red,
             radius = radius,
@@ -355,23 +296,20 @@ fun List<android.graphics.Rect>.filterInside(container: android.graphics.Rect): 
                 r.bottom <= container.bottom
     }
 }
+
 fun RectF.mapToCanvas(
     imageWidth: Float,
     imageHeight: Float,
     canvasWidth: Float,
     canvasHeight: Float
 ): Rect {
-
     val scale = maxOf(canvasWidth / imageWidth, canvasHeight / imageHeight)
-
     val scaledW = imageWidth * scale
     val scaledH = imageHeight * scale
-
     val dx = (canvasWidth - scaledW) / 2f
     val dy = (canvasHeight - scaledH) / 2f
 
     val isNormalized = right <= 1f
-
     val leftSrc = if (isNormalized) left * imageWidth else left
     val topSrc = if (isNormalized) top * imageHeight else top
     val rightSrc = if (isNormalized) right * imageWidth else right
@@ -391,12 +329,9 @@ fun Rect.toImageRect(
     imageWidth: Float,
     imageHeight: Float
 ): RectF {
-
     val scale = maxOf(canvasWidth / imageWidth, canvasHeight / imageHeight)
-
     val scaledW = imageWidth * scale
     val scaledH = imageHeight * scale
-
     val dx = (canvasWidth - scaledW) / 2f
     val dy = (canvasHeight - scaledH) / 2f
 
@@ -405,7 +340,6 @@ fun Rect.toImageRect(
     val rightImg = (right - dx) / scale
     val bottomImg = (bottom - dy) / scale
 
-    // Clamp to image bounds
     return RectF(
         leftImg.coerceIn(0f, imageWidth),
         topImg.coerceIn(0f, imageHeight),
@@ -418,98 +352,58 @@ fun mergeToFittedBoxes(
     detections: List<Detection>,
     margin: Float = 5f
 ): List<Detection> {
-
-
     val remaining = detections.toMutableList()
     val result = mutableListOf<Detection>()
 
     fun isClose(a: RectF, b: RectF): Boolean {
-        val expanded = RectF(
-            a.left - margin,
-            a.top - margin,
-            a.right + margin,
-            a.bottom + margin
-        )
+        val expanded = RectF(a.left - margin, a.top - margin, a.right + margin, a.bottom + margin)
         return RectF.intersects(expanded, b)
     }
 
     while (remaining.isNotEmpty()) {
-
         val seed = remaining.removeAt(0)
-
         var minLeft = seed.rect.left
         var minTop = seed.rect.top
         var maxRight = seed.rect.right
         var maxBottom = seed.rect.bottom
-
         var bestScore = seed.score
         var bestColor = seed.rectColor
-
         var changed: Boolean
 
         do {
             changed = false
-
             val iterator = remaining.iterator()
-
             while (iterator.hasNext()) {
                 val other = iterator.next()
-
-                // Remove this if you want cross-class merging
                 if (other.classId != seed.classId) continue
-
                 val currentRect = RectF(minLeft, minTop, maxRight, maxBottom)
-
                 if (isClose(currentRect, other.rect)) {
-
-                    // Expand cluster bounds
                     minLeft = minOf(minLeft, other.rect.left)
                     minTop = minOf(minTop, other.rect.top)
                     maxRight = maxOf(maxRight, other.rect.right)
                     maxBottom = maxOf(maxBottom, other.rect.bottom)
-
                     if (other.score > bestScore) {
                         bestScore = other.score
                         bestColor = other.rectColor
                     }
-
                     iterator.remove()
                     changed = true
                 }
             }
-
         } while (changed)
 
-        result.add(
-            Detection(
-                rect = RectF(minLeft, minTop, maxRight, maxBottom),
-                score = bestScore,
-                classId = seed.classId,
-                rectColor = bestColor
-            )
-        )
+        result.add(Detection(RectF(minLeft, minTop, maxRight, maxBottom), bestScore, seed.classId, bestColor))
     }
-
     return result
 }
 
-fun findBestBox(
-    detections: List<Detection>,
-    focusBox: RectF
-): Detection? {
+fun findBestBox(detections: List<Detection>, focusBox: RectF): Detection? {
     return detections.maxByOrNull { det ->
-        val intersection = RectF().apply {
-            setIntersect(det.rect, focusBox)
-        }
+        val intersection = RectF().apply { setIntersect(det.rect, focusBox) }
         val overlapArea = intersection.width() * intersection.height()
         val detArea = det.rect.width() * det.rect.height()
-
-        // prioritize overlap, fallback to closeness
         val overlapRatio = if (detArea > 0) overlapArea / detArea else 0f
-
-        val centerDist = distance(det.rect.centerX(), det.rect.centerY(),
-            focusBox.centerX(), focusBox.centerY())
-
+        val centerDist = distance(det.rect.centerX(), det.rect.centerY(), focusBox.centerX(), focusBox.centerY())
         overlapRatio * 2 - centerDist * 0.001f
     }
 }
@@ -520,17 +414,12 @@ fun getDirection(dx: Float, dy: Float, threshold: Float): String {
         dx < -threshold -> "Move Left"
         else -> ""
     }
-
     val vertical = when {
         dy > threshold -> "Move Down"
         dy < -threshold -> "Move Up"
         else -> ""
     }
-
-    return listOf(horizontal, vertical)
-        .filter { it.isNotEmpty() }
-        .joinToString(" & ")
-        .ifEmpty { "Centered" }
+    return listOf(horizontal, vertical).filter { it.isNotEmpty() }.joinToString(" & ").ifEmpty { "Centered" }
 }
 
 fun getDistanceHint(areaRatio: Float): String {
@@ -544,12 +433,8 @@ fun getDistanceHint(areaRatio: Float): String {
 fun generateInstruction(best: Detection, focusBox: RectF): String {
     val dx = best.rect.centerX() - focusBox.centerX()
     val dy = best.rect.centerY() - focusBox.centerY()
-
     val direction = getDirection(dx, dy, threshold = 20f)
-
-    val areaRatio = (best.rect.width() * best.rect.height()) /
-            (focusBox.width() * focusBox.height())
-
+    val areaRatio = (best.rect.width() * best.rect.height()) / (focusBox.width() * focusBox.height())
     val distance = getDistanceHint(areaRatio)
 
     return when {
@@ -558,57 +443,60 @@ fun generateInstruction(best: Detection, focusBox: RectF): String {
         else -> "$direction + $distance"
     }
 }
-fun generateAlignmentVector(
-    best: Detection,
-    focusBox: RectF
-): AlignmentVector {
 
+fun generateAlignmentVector(best: Detection, focusBox: RectF): AlignmentVector {
     val dx = best.rect.centerX() - focusBox.centerX()
     val dy = best.rect.centerY() - focusBox.centerY()
-
-    // normalized horizontal / vertical
     val h = dx / focusBox.width()
     val v = dy / focusBox.height()
-
-    // depth using area ratio (log makes it stable)
-    val areaRatio =
-        (best.rect.width() * best.rect.height()) /
-                (focusBox.width() * focusBox.height())
-
-    val z =Math.log(areaRatio.toDouble()).toFloat()
-
-    return AlignmentVector(
-        h = h,
-        v = v,
-        z = z
-    )
+    val areaRatio = (best.rect.width() * best.rect.height()) / (focusBox.width() * focusBox.height())
+    val z = Math.log(areaRatio.toDouble()).toFloat()
+    return AlignmentVector(h = h, v = v, z = z)
 }
 
-fun distance(
-    x1: Float, y1: Float,
-    x2: Float, y2: Float
-): Float {
+fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
     val dx = x2 - x1
     val dy = y2 - y1
     return kotlin.math.sqrt(dx * dx + dy * dy)
 }
 
-fun ImageProxy.toFrameData(): FrameData {
-    val yPlane = planes[0]
-    val uPlane = planes[1]
-    val vPlane = planes[2]
+fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+    val planes = image.planes
+    if (planes.isEmpty()) throw IllegalArgumentException("ImageProxy has no planes")
 
-    return FrameData(
-        y = yPlane.buffer.toByteArray(),
-        u = uPlane.buffer.toByteArray(),
-        v = vPlane.buffer.toByteArray(),
-        width = width,
-        height = height,
-        rotation = imageInfo.rotationDegrees,
-        yRowStride = yPlane.rowStride,
-        uvRowStride = uPlane.rowStride,
-        uvPixelStride = uPlane.pixelStride
-    )
+    val bitmap = if (image.format == ImageFormat.JPEG) {
+        val buffer = planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } else if (planes.size >= 3) {
+        val yBuffer = planes[0].buffer
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+
+        val nv21 = ByteArray(yBuffer.remaining() + uBuffer.remaining() + vBuffer.remaining())
+        yBuffer.get(nv21, 0, yBuffer.remaining())
+        vBuffer.get(nv21, yBuffer.remaining(), vBuffer.remaining())
+        uBuffer.get(nv21, yBuffer.remaining() + vBuffer.remaining(), uBuffer.remaining())
+
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+        val out = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 100, out)
+        BitmapFactory.decodeByteArray(out.toByteArray(), 0, out.size())
+    } else {
+        val buffer = planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } ?: throw RuntimeException("Failed to decode bitmap")
+
+    val rotationDegrees = image.imageInfo.rotationDegrees
+    return if (rotationDegrees != 0) {
+        val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    } else {
+        bitmap
+    }
 }
 
 fun ByteBuffer.toByteArray(): ByteArray {
