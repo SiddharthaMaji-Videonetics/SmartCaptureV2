@@ -83,6 +83,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 
     val instruction = viewModel.inst.collectAsState(null)
     val focusedObj = viewModel.focusedObj.collectAsState(null)
+    val isCapturable = viewModel.isCapturable.collectAsState(false)
     val (interpreter, gpuDelegate) = remember {
         val options = Interpreter.Options()
         var delegate: GpuDelegate? = null
@@ -118,6 +119,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
                 interpreter = interpreter,
                 focusedObj = focusedObj.value,
                 inst = instruction.value,
+                isCapturable = isCapturable.value,
                 updateCanvasSize ={w,h->
                     viewModel.updateCanvasSize(w, h)
                 },
@@ -170,15 +172,16 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
                          focusedObj: RectF? = null,
                          inst: AlignmentVector? = null,
+                         isCapturable: Boolean = false,
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
-            AnimatedVisibility(visible = inst?.h == 0f && inst.v == 0f) {
+            AnimatedVisibility(visible = isCapturable) {
                 FloatingActionButton(onClick = {
 
                 }) {
-                    Icon(painterResource(R.drawable.ic_bounding_box),
+                    Icon(painterResource(R.drawable.ic_camera),
                         contentDescription = "Edit Bounding box",)
                 }
             }

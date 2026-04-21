@@ -36,6 +36,9 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
     private var _focusedObj = MutableStateFlow<RectF?>(null)
     val focusedObj : Flow<RectF?> = _focusedObj
+
+    private var _isCapturable = MutableStateFlow<Boolean>(false)
+    var isCapturable = _isCapturable
     fun setDetection(detections: List<Detection>) {
 
         _detectionList.clear()
@@ -57,6 +60,12 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
             val inst = generateInstruction(destDetection,_focusBox!!)
 
             val hint = generateAlignmentVector(destDetection, _focusBox!!)
+
+            if(hint.z <=0 && hint.z >=-1.5 && hint.h <=0.02 && hint.v <=0.02){
+                _isCapturable.value = true
+            }else{
+                _isCapturable.value = false
+            }
             _inst.value = hint
             Log.e("instruction", inst+"($hint)")
         }
