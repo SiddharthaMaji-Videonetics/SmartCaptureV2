@@ -164,9 +164,6 @@ fun FocusBoxOverlay(
                                     }
                                 }
 
-                                // -------------------------
-                                // ✅ EMIT BOTH RECTS
-                                // -------------------------
 
                                 // SCREEN RECT (for overlay)
                                 onScreenRectChanged(
@@ -342,9 +339,6 @@ fun InstructionGuideOverlay(
             }
         }
 
-        // -------------------------
-        // ✅ TEXT (now works properly)
-        // -------------------------
         zoomHint?.let {
             Text(
                 text = it,
