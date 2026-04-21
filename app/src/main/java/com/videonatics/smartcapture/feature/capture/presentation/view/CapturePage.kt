@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -169,7 +171,20 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          focusedObj: RectF? = null,
                          inst: AlignmentVector? = null,
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
-    Scaffold { paddingValues ->
+    Scaffold (
+        floatingActionButtonPosition = FabPosition.Center,
+        floatingActionButton = {
+            AnimatedVisibility(visible = inst?.h == 0f && inst.v == 0f) {
+                FloatingActionButton(onClick = {
+
+                }) {
+                    Icon(painterResource(R.drawable.ic_bounding_box),
+                        contentDescription = "Edit Bounding box",)
+                }
+            }
+
+        }
+    ){ paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
             CameraDetectionView(interpreter,
@@ -196,47 +211,9 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
     var isBoundBoxEdit by remember { mutableStateOf(false) }
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
-    @Composable
-    fun ColumnScope.toolbarComponent() {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(5.dp)
-                .align(alignment = Alignment.CenterHorizontally),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_bounding_box),
-                modifier = Modifier
-                    .size(30.dp)
-                    .padding(5.dp)
-                    .clickable(
-                        onClick = {
-                            isBoundBoxEdit = !isBoundBoxEdit
-                        }),
-                contentDescription = "Edit Bounding box",
-                tint = if(isBoundBoxEdit)
-                    androidx.compose.ui.graphics.Color(0xFFFF9800) else
-                    androidx.compose.ui.graphics.Color(0xFFFFFFFF),
 
-                )
-
-            Box(){
-                Icon(
-                    painterResource(R.drawable.ic_flash_on),
-                    modifier = Modifier.padding(5.dp),
-                    contentDescription = "Camera",
-                    tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-
-                    )
-            }
-
-        }
-    }
 
     return Box(){
-
         var focusBox by remember { mutableStateOf<RectF?>(null) }
         AnimatedContent(targetState = (interpreter !=null)) {
             if(it){
@@ -301,7 +278,8 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         modifier = Modifier.fillMaxSize(),
                         onCanvasSizeChanged = { w, h ->
                             updateCanvasSize.invoke(w, h)
-                        }
+                        },
+
                     )
                     if(focusBox!=null) {
                         InstructionGuideOverlay(
@@ -333,8 +311,8 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
         }
 
-        Column() {
-            toolbarComponent()
+        Box() {
+
             if(imageWidth>0 && imageHeight >0){
                 FocusBoxOverlay(
                     modifier = Modifier.fillMaxSize(),
@@ -349,11 +327,11 @@ fun CameraDetectionView(interpreter: Interpreter?,
                     onScreenRectChanged = {
                         focusBox = it
                     }
-                )}else{
-                    Box(modifier = Modifier.fillMaxSize()){
+                )}
 
-                    }
-            }
+            ToolbarComponent(isBoundBoxEdit, onBoundBoxEdit = {
+                isBoundBoxEdit = it
+            })
         }
 
     }

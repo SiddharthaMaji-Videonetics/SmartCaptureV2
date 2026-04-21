@@ -8,7 +8,16 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -23,11 +33,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.Detection
 import java.util.concurrent.Executors
 
@@ -176,6 +189,54 @@ fun BoundingBoxOverlay(
                 style = Stroke(width = stroke)
             )
         }
+    }
+}
+
+@Composable
+fun ToolbarComponent(isBoundBoxEdit: Boolean,
+                     onBoundBoxEdit: (Boolean) -> Unit = {},
+                     onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
+    var isBoundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(5.dp)
+            .onSizeChanged{
+                onToolbarSize.invoke(
+                    it.width,
+                    it.height
+                )
+            },
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_bounding_box),
+            modifier = Modifier
+                .size(30.dp)
+                .padding(5.dp)
+                .clickable(
+                    onClick = {
+                        isBoundBoxEdit = !isBoundBoxEdit
+                        onBoundBoxEdit.invoke(isBoundBoxEdit)
+                    }),
+            contentDescription = "Edit Bounding box",
+            tint = if(isBoundBoxEdit)
+                androidx.compose.ui.graphics.Color(0xFFFF9800) else
+                androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+            )
+
+        Box(){
+            Icon(
+                painterResource(R.drawable.ic_flash_on),
+                modifier = Modifier.padding(5.dp),
+                contentDescription = "Camera",
+                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+                )
+        }
+
     }
 }
 

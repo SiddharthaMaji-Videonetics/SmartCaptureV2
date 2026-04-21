@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +59,6 @@ fun FocusBoxOverlay(
     var dragAccumX by remember { mutableStateOf(0f) }
     var dragAccumY by remember { mutableStateOf(0f) }
 
-    // Snap state (stateful = FIX)
     var snapX by remember { mutableStateOf<HorizontalSnap?>(null) }
     var snapY by remember { mutableStateOf<VerticalSnap?>(null) }
 
@@ -154,12 +154,12 @@ fun FocusBoxOverlay(
                                 updated = Rect(left, top, right, bottom)
 
                                 // -------------------------
-                                // 🧲 MAGNETIC SNAP (STATEFUL)
+                                // 🧲 SNAP (WITH DETACH)
                                 // -------------------------
                                 if (dragMode == DragMode.MOVE) {
 
-                                    val snapThreshold = 2.dp.toPx()
-                                    val releaseThreshold = 2.dp.toPx()
+                                    val snapThreshold = 30.dp.toPx()
+                                    val releaseThreshold = 80.dp.toPx()
 
                                     val cx = size.width / 2f
                                     val cy = size.height / 2f
@@ -167,9 +167,7 @@ fun FocusBoxOverlay(
                                     val rectCx = updated.center.x
                                     val rectCy = updated.center.y
 
-                                    // -------------------------
-                                    // 🔓 RELEASE SNAP
-                                    // -------------------------
+                                    // RELEASE SNAP
                                     if (snapX != null && abs(dragAccumX) > releaseThreshold) {
                                         snapX = null
                                         dragAccumX = 0f
@@ -180,9 +178,7 @@ fun FocusBoxOverlay(
                                         dragAccumY = 0f
                                     }
 
-                                    // -------------------------
-                                    // SNAP DETECT (ONLY IF NOT SNAPPED)
-                                    // -------------------------
+                                    // DETECT SNAP (only if not snapped)
                                     if (snapX == null) {
                                         snapX = when {
                                             abs(updated.left) < snapThreshold -> HorizontalSnap.LEFT
@@ -201,9 +197,7 @@ fun FocusBoxOverlay(
                                         }?.also { dragAccumY = 0f }
                                     }
 
-                                    // -------------------------
                                     // APPLY SNAP
-                                    // -------------------------
                                     updated = when (snapX) {
                                         HorizontalSnap.LEFT -> updated.translate(-updated.left, 0f)
                                         HorizontalSnap.RIGHT -> updated.translate(size.width - updated.right, 0f)
@@ -217,24 +211,14 @@ fun FocusBoxOverlay(
                                         VerticalSnap.CENTER -> updated.translate(0f, cy - rectCy)
                                         null -> updated
                                     }
-                                }
 
-                                // -------------------------
-                                // EMIT
-                                // -------------------------
-                                onScreenRectChanged(
-                                    RectF(updated.left, updated.top, updated.right, updated.bottom)
-                                )
-
-                                if (imageWidth > 0 && imageHeight > 0) {
-                                    onImageRectChanged(
-                                        updated.toImageRect(
-                                            size.width.toFloat(),
-                                            size.height.toFloat(),
-                                            imageWidth,
-                                            imageHeight
-                                        )
-                                    )
+                                    // SCREEN RECT (for overlay)
+                                    onScreenRectChanged( RectF( updated.left, updated.top, updated.right, updated.bottom ) )
+                                // IMAGE RECT (for ML)
+                                    if (imageWidth > 0f && imageHeight > 0f) {
+                                        val imageRect = updated.toImageRect( size.width.toFloat(), size.height.toFloat(), imageWidth, imageHeight )
+                                        onImageRectChanged(imageRect)
+                                    }
                                 }
 
                                 updated
@@ -244,7 +228,7 @@ fun FocusBoxOverlay(
                 }
         ) {
 
-            // INIT
+            // INIT using Canvas size (correct)
             if (rect == null) {
                 rect = Rect(
                     size.width * 0.2f,
@@ -256,33 +240,55 @@ fun FocusBoxOverlay(
 
             rect?.let { r ->
 
-                // BOX
+                //ALWAYS EMIT HERE (correct coordinate space)
+                onScreenRectChanged(
+                    RectF(r.left, r.top, r.right, r.bottom)
+                )
+
+                if (imageWidth > 0 && imageHeight > 0) {
+                    onImageRectChanged(
+                        r.toImageRect(
+                            size.width,
+                            size.height,
+                            imageWidth,
+                            imageHeight
+                        )
+                    )
+                }
+
+                // DRAW BOX
                 drawRect(
-                    Color.Green,
-                    Offset(r.left, r.top),
-                    Size(r.width, r.height),
+                    color = Color.Green,
+                    topLeft = Offset(r.left, r.top),
+                    size = Size(r.width, r.height),
                     style = Stroke(4.dp.toPx())
                 )
 
-                if (isEditable) drawHandles(r, 20.dp.toPx())
+                if (isEditable) {
+                    drawHandles(r, 20.dp.toPx())
+                }
 
-                // -------------------------
                 // SNAP GUIDES
-                // -------------------------
                 val cx = size.width / 2
                 val cy = size.height / 2
 
                 when (snapX) {
-                    HorizontalSnap.LEFT -> drawLine(Color.Yellow, Offset(0f, 0f), Offset(0f, size.height), 2.dp.toPx())
-                    HorizontalSnap.RIGHT -> drawLine(Color.Yellow, Offset(size.width, 0f), Offset(size.width, size.height), 2.dp.toPx())
-                    HorizontalSnap.CENTER -> drawLine(Color.Yellow, Offset(cx, 0f), Offset(cx, size.height), 2.dp.toPx())
+                    HorizontalSnap.LEFT ->
+                        drawLine(Color.Yellow, Offset(0f, 0f), Offset(0f, size.height), 2.dp.toPx())
+                    HorizontalSnap.RIGHT ->
+                        drawLine(Color.Yellow, Offset(size.width, 0f), Offset(size.width, size.height), 2.dp.toPx())
+                    HorizontalSnap.CENTER ->
+                        drawLine(Color.Yellow, Offset(cx, 0f), Offset(cx, size.height), 2.dp.toPx())
                     null -> {}
                 }
 
                 when (snapY) {
-                    VerticalSnap.TOP -> drawLine(Color.Yellow, Offset(0f, 0f), Offset(size.width, 0f), 2.dp.toPx())
-                    VerticalSnap.BOTTOM -> drawLine(Color.Yellow, Offset(0f, size.height), Offset(size.width, size.height), 2.dp.toPx())
-                    VerticalSnap.CENTER -> drawLine(Color.Yellow, Offset(0f, cy), Offset(size.width, cy), 2.dp.toPx())
+                    VerticalSnap.TOP ->
+                        drawLine(Color.Yellow, Offset(0f, 0f), Offset(size.width, 0f), 2.dp.toPx())
+                    VerticalSnap.BOTTOM ->
+                        drawLine(Color.Yellow, Offset(0f, size.height), Offset(size.width, size.height), 2.dp.toPx())
+                    VerticalSnap.CENTER ->
+                        drawLine(Color.Yellow, Offset(0f, cy), Offset(size.width, cy), 2.dp.toPx())
                     null -> {}
                 }
             }
@@ -310,9 +316,6 @@ fun InstructionGuideOverlay(
         )
     )
 
-    // -------------------------
-    // 🔥 ZOOM LOGIC (outside Canvas)
-    // -------------------------
 
     val zoomHint = when {
         instruction.z < -1.5 -> "Move Closer"
@@ -324,7 +327,7 @@ fun InstructionGuideOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .onSizeChanged { containerSize = it }   // ✅ get size here
+            .onSizeChanged { containerSize = it }
     ) {
 
         Canvas(modifier = Modifier.matchParentSize()) {
@@ -334,17 +337,17 @@ fun InstructionGuideOverlay(
             val paddingY = 15f
             val threshold = 0.02f
 
-            val color = Color.White.copy(alpha = blinkAlpha)
+            val color = Color.Red.copy(alpha = blinkAlpha)
 
-            val guideTop = rect.top - paddingY
-            val guideBottom = rect.bottom + paddingY
+            val guideTop = rect.top
+            val guideBottom = rect.bottom + 30
 
             // LEFT
             if (instruction.h < -threshold) {
                 drawRect(
                     color = color,
-                    topLeft = Offset(rect.left - 15f, rect.top),
-                    size = Size(stroke, rect.height())
+                    topLeft = Offset(rect.left - 15f, guideTop + 10),
+                    size = Size(stroke, rect.height() )
                 )
             }
 
@@ -352,8 +355,8 @@ fun InstructionGuideOverlay(
             if (instruction.h > threshold) {
                 drawRect(
                     color = color,
-                    topLeft = Offset(rect.right - stroke + 15f, rect.top),
-                    size = Size(stroke, rect.height())
+                    topLeft = Offset(rect.right - stroke + 15f, guideTop + 10),
+                    size = Size(stroke, rect.height() )
                 )
             }
 
@@ -361,7 +364,7 @@ fun InstructionGuideOverlay(
             if (instruction.v < -threshold) {
                 drawRect(
                     color = color,
-                    topLeft = Offset(rect.left, guideTop),
+                    topLeft = Offset(rect.left, guideTop- paddingY),
                     size = Size(rect.width(), stroke)
                 )
             }
@@ -370,7 +373,7 @@ fun InstructionGuideOverlay(
             if (instruction.v > threshold) {
                 drawRect(
                     color = color,
-                    topLeft = Offset(rect.left, guideBottom - stroke),
+                    topLeft = Offset(rect.left, guideBottom - paddingY),
                     size = Size(rect.width(), stroke)
                 )
             }
