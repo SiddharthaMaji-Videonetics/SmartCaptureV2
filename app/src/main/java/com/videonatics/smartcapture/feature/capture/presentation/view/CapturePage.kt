@@ -161,7 +161,9 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
                 }else{
                     ImageAnalysisPageComponent(
                         capturedImage = viewModel.capturedImage()
-                    )
+                    ){
+                        isLiveCapturing = true
+                    }
                 }
             }
 
