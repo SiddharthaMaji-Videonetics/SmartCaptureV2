@@ -40,26 +40,27 @@ import com.videonatics.smartcapture.core.getDragMode
 import com.videonatics.smartcapture.core.toImageRect
 import kotlin.math.abs
 
+
+enum class HorizontalSnap { LEFT, RIGHT, CENTER }
+enum class VerticalSnap { TOP, BOTTOM, CENTER }
 @Composable
 fun FocusBoxOverlay(
     modifier: Modifier = Modifier,
     imageWidth: Float,
     imageHeight: Float,
     isEditable: Boolean = false,
-    isCenterGuideVisible: Boolean = true,
     onImageRectChanged: (RectF) -> Unit = {},
     onScreenRectChanged: (RectF) -> Unit = {}
 ) {
     var rect by remember { mutableStateOf<Rect?>(null) }
     var dragMode by remember { mutableStateOf(DragMode.NONE) }
 
-    var isSnappedX by remember { mutableStateOf(false) }
-    var isSnappedY by remember { mutableStateOf(false) }
-
     var dragAccumX by remember { mutableStateOf(0f) }
     var dragAccumY by remember { mutableStateOf(0f) }
 
-    val configuration = LocalConfiguration.current
+    // Snap state (stateful = FIX)
+    var snapX by remember { mutableStateOf<HorizontalSnap?>(null) }
+    var snapY by remember { mutableStateOf<VerticalSnap?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
 
@@ -80,13 +81,13 @@ fun FocusBoxOverlay(
                         },
                         onDragEnd = {
                             dragMode = DragMode.NONE
-                            isSnappedX = false
-                            isSnappedY = false
+                            snapX = null
+                            snapY = null
                         },
                         onDragCancel = {
                             dragMode = DragMode.NONE
-                            isSnappedX = false
-                            isSnappedY = false
+                            snapX = null
+                            snapY = null
                         },
                         onDrag = { change, dragAmount ->
                             change.consume()
@@ -96,7 +97,12 @@ fun FocusBoxOverlay(
 
                             rect = rect?.let { r ->
 
+                                // -------------------------
+                                // APPLY DRAG
+                                // -------------------------
                                 var updated = when (dragMode) {
+                                    DragMode.MOVE -> r.translate(dragAmount.x, dragAmount.y)
+
                                     DragMode.LEFT -> r.copy(left = r.left + dragAmount.x)
                                     DragMode.RIGHT -> r.copy(right = r.right + dragAmount.x)
                                     DragMode.TOP -> r.copy(top = r.top + dragAmount.y)
@@ -106,31 +112,54 @@ fun FocusBoxOverlay(
                                         left = r.left + dragAmount.x,
                                         top = r.top + dragAmount.y
                                     )
+
                                     DragMode.TOP_RIGHT -> r.copy(
                                         right = r.right + dragAmount.x,
                                         top = r.top + dragAmount.y
                                     )
+
                                     DragMode.BOTTOM_LEFT -> r.copy(
                                         left = r.left + dragAmount.x,
                                         bottom = r.bottom + dragAmount.y
                                     )
+
                                     DragMode.BOTTOM_RIGHT -> r.copy(
                                         right = r.right + dragAmount.x,
                                         bottom = r.bottom + dragAmount.y
                                     )
 
-                                    DragMode.MOVE -> r.translate(dragAmount.x, dragAmount.y)
                                     else -> r
                                 }
 
                                 // -------------------------
-                                // SNAP (same as before)
+                                // 🔒 Bounds + Min Size
+                                // -------------------------
+                                val minSize = 80.dp.toPx()
+
+                                var left = updated.left.coerceIn(0f, size.width.toFloat())
+                                var right = updated.right.coerceIn(0f, size.width.toFloat())
+                                var top = updated.top.coerceIn(0f, size.height.toFloat())
+                                var bottom = updated.bottom.coerceIn(0f, size.height.toFloat())
+
+                                if (right - left < minSize) {
+                                    if (dragMode.name.contains("LEFT")) left = right - minSize
+                                    else right = left + minSize
+                                }
+
+                                if (bottom - top < minSize) {
+                                    if (dragMode.name.contains("TOP")) top = bottom - minSize
+                                    else bottom = top + minSize
+                                }
+
+                                updated = Rect(left, top, right, bottom)
+
+                                // -------------------------
+                                // 🧲 MAGNETIC SNAP (STATEFUL)
                                 // -------------------------
                                 if (dragMode == DragMode.MOVE) {
 
-                                    val snapThreshold = 30.dp.toPx()
-                                    val releaseThreshold = 60.dp.toPx()
-
+                                    val snapThreshold = 2.dp.toPx()
+                                    val releaseThreshold = 2.dp.toPx()
 
                                     val cx = size.width / 2f
                                     val cy = size.height / 2f
@@ -138,52 +167,74 @@ fun FocusBoxOverlay(
                                     val rectCx = updated.center.x
                                     val rectCy = updated.center.y
 
-                                    if (isSnappedX && abs(dragAccumX) > releaseThreshold) {
-                                        isSnappedX = false
+                                    // -------------------------
+                                    // 🔓 RELEASE SNAP
+                                    // -------------------------
+                                    if (snapX != null && abs(dragAccumX) > releaseThreshold) {
+                                        snapX = null
                                         dragAccumX = 0f
                                     }
-                                    if (isSnappedY && abs(dragAccumY) > releaseThreshold) {
-                                        isSnappedY = false
+
+                                    if (snapY != null && abs(dragAccumY) > releaseThreshold) {
+                                        snapY = null
                                         dragAccumY = 0f
                                     }
 
-                                    if (isSnappedX) {
-                                        updated = updated.translate(cx - rectCx, 0f)
-                                    } else if (abs(rectCx - cx) < snapThreshold) {
-                                        isSnappedX = true
-                                        dragAccumX = 0f
-                                        updated = updated.translate(cx - rectCx, 0f)
+                                    // -------------------------
+                                    // SNAP DETECT (ONLY IF NOT SNAPPED)
+                                    // -------------------------
+                                    if (snapX == null) {
+                                        snapX = when {
+                                            abs(updated.left) < snapThreshold -> HorizontalSnap.LEFT
+                                            abs(updated.right - size.width) < snapThreshold -> HorizontalSnap.RIGHT
+                                            abs(rectCx - cx) < snapThreshold -> HorizontalSnap.CENTER
+                                            else -> null
+                                        }?.also { dragAccumX = 0f }
                                     }
 
-                                    if (isSnappedY) {
-                                        updated = updated.translate(0f, cy - rectCy)
-                                    } else if (abs(rectCy - cy) < snapThreshold) {
-                                        isSnappedY = true
-                                        dragAccumY = 0f
-                                        updated = updated.translate(0f, cy - rectCy)
+                                    if (snapY == null) {
+                                        snapY = when {
+                                            abs(updated.top) < snapThreshold -> VerticalSnap.TOP
+                                            abs(updated.bottom - size.height) < snapThreshold -> VerticalSnap.BOTTOM
+                                            abs(rectCy - cy) < snapThreshold -> VerticalSnap.CENTER
+                                            else -> null
+                                        }?.also { dragAccumY = 0f }
+                                    }
+
+                                    // -------------------------
+                                    // APPLY SNAP
+                                    // -------------------------
+                                    updated = when (snapX) {
+                                        HorizontalSnap.LEFT -> updated.translate(-updated.left, 0f)
+                                        HorizontalSnap.RIGHT -> updated.translate(size.width - updated.right, 0f)
+                                        HorizontalSnap.CENTER -> updated.translate(cx - rectCx, 0f)
+                                        null -> updated
+                                    }
+
+                                    updated = when (snapY) {
+                                        VerticalSnap.TOP -> updated.translate(0f, -updated.top)
+                                        VerticalSnap.BOTTOM -> updated.translate(0f, size.height - updated.bottom)
+                                        VerticalSnap.CENTER -> updated.translate(0f, cy - rectCy)
+                                        null -> updated
                                     }
                                 }
 
-
-                                // SCREEN RECT (for overlay)
+                                // -------------------------
+                                // EMIT
+                                // -------------------------
                                 onScreenRectChanged(
-                                    RectF(
-                                        updated.left,
-                                        updated.top,
-                                        updated.right,
-                                        updated.bottom
-                                    )
+                                    RectF(updated.left, updated.top, updated.right, updated.bottom)
                                 )
 
-                                // IMAGE RECT (for ML)
-                                if (imageWidth > 0f && imageHeight > 0f) {
-                                    val imageRect = updated.toImageRect(
-                                        size.width.toFloat(),
-                                        size.height.toFloat(),
-                                        imageWidth,
-                                        imageHeight
+                                if (imageWidth > 0 && imageHeight > 0) {
+                                    onImageRectChanged(
+                                        updated.toImageRect(
+                                            size.width.toFloat(),
+                                            size.height.toFloat(),
+                                            imageWidth,
+                                            imageHeight
+                                        )
                                     )
-                                    onImageRectChanged(imageRect)
                                 }
 
                                 updated
@@ -195,58 +246,44 @@ fun FocusBoxOverlay(
 
             // INIT
             if (rect == null) {
-                rect = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    Rect(
-                        size.width * 0.15f,
-                        size.height * 0.15f,
-                        size.width * 0.85f,
-                        size.height * 0.85f
-                    )
-                } else {
-                    Rect(
-                        size.width * 0.2f,
-                        size.height * 0.3f,
-                        size.width * 0.8f,
-                        size.height * 0.7f
-                    )
-                }
+                rect = Rect(
+                    size.width * 0.2f,
+                    size.height * 0.3f,
+                    size.width * 0.8f,
+                    size.height * 0.7f
+                )
             }
 
             rect?.let { r ->
 
-                // ALSO EMIT on first draw
-                onScreenRectChanged(
-                    RectF(r.left, r.top, r.right, r.bottom)
-                )
-
-                if (imageWidth > 0f && imageHeight > 0f) {
-                    val imageRect = r.toImageRect(
-                        size.width,
-                        size.height,
-                        imageWidth,
-                        imageHeight
-                    )
-                    onImageRectChanged(imageRect)
-                }
-
-                // DRAW BOX
+                // BOX
                 drawRect(
-                    color = Color.Green,
-                    topLeft = Offset(r.left, r.top),
-                    size = Size(r.width, r.height),
-                    style = Stroke(width = 4.dp.toPx())
+                    Color.Green,
+                    Offset(r.left, r.top),
+                    Size(r.width, r.height),
+                    style = Stroke(4.dp.toPx())
                 )
 
-                if (isCenterGuideVisible) {
-                    val cx = size.width / 2
-                    val cy = size.height / 2
+                if (isEditable) drawHandles(r, 20.dp.toPx())
 
-                    drawLine(Color.Gray, Offset(cx, 0f), Offset(cx, size.height), 1.dp.toPx())
-                    drawLine(Color.Gray, Offset(0f, cy), Offset(size.width, cy), 1.dp.toPx())
+                // -------------------------
+                // SNAP GUIDES
+                // -------------------------
+                val cx = size.width / 2
+                val cy = size.height / 2
+
+                when (snapX) {
+                    HorizontalSnap.LEFT -> drawLine(Color.Yellow, Offset(0f, 0f), Offset(0f, size.height), 2.dp.toPx())
+                    HorizontalSnap.RIGHT -> drawLine(Color.Yellow, Offset(size.width, 0f), Offset(size.width, size.height), 2.dp.toPx())
+                    HorizontalSnap.CENTER -> drawLine(Color.Yellow, Offset(cx, 0f), Offset(cx, size.height), 2.dp.toPx())
+                    null -> {}
                 }
 
-                if (isEditable) {
-                    drawHandles(r, 20.dp.toPx())
+                when (snapY) {
+                    VerticalSnap.TOP -> drawLine(Color.Yellow, Offset(0f, 0f), Offset(size.width, 0f), 2.dp.toPx())
+                    VerticalSnap.BOTTOM -> drawLine(Color.Yellow, Offset(0f, size.height), Offset(size.width, size.height), 2.dp.toPx())
+                    VerticalSnap.CENTER -> drawLine(Color.Yellow, Offset(0f, cy), Offset(size.width, cy), 2.dp.toPx())
+                    null -> {}
                 }
             }
         }

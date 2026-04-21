@@ -12,15 +12,18 @@ import androidx.camera.core.ImageProxy
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
@@ -75,7 +78,6 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val labels = loadLabels(context)
     val viewModel = hiltViewModel<CaptureViewModel>()
-    val objectInsideFocusBoxCount = viewModel.objectInsideFocusBoxCount.collectAsState(0)
 
     val instruction = viewModel.inst.collectAsState(null)
     val focusedObj = viewModel.focusedObj.collectAsState(null)
@@ -112,7 +114,6 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
         cameraPermissionState.status.isGranted -> {
             CapturePageComponent(
                 interpreter = interpreter,
-                objectInBoxCount = objectInsideFocusBoxCount.value,
                 focusedObj = focusedObj.value,
                 inst = instruction.value,
                 updateCanvasSize ={w,h->
@@ -165,7 +166,6 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 @Composable
 fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
-                         objectInBoxCount: Int = 0,
                          focusedObj: RectF? = null,
                          inst: AlignmentVector? = null,
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
@@ -173,7 +173,6 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
             CameraDetectionView(interpreter,
-                objectInBoxCount,
                 focusedObj,
                 inst,
                 updateCanvasSize,
@@ -186,7 +185,6 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
 
 @Composable
 fun CameraDetectionView(interpreter: Interpreter?,
-                        objectInBoxCount: Int,
                         focusedObj: RectF? = null,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
@@ -196,31 +194,42 @@ fun CameraDetectionView(interpreter: Interpreter?,
     var imageHeight by remember { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
 
+    var isBoundBoxEdit by remember { mutableStateOf(false) }
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
     @Composable
-    fun BoxScope.toolbarComponent() {
+    fun ColumnScope.toolbarComponent() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(5.dp)
-                .align(Alignment.TopCenter),
+                .align(alignment = Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                painterResource(R.drawable.ic_flash_on),
-                modifier = Modifier.padding(5.dp),
-                contentDescription = "Camera",
-                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+                painterResource(R.drawable.ic_bounding_box),
+                modifier = Modifier
+                    .size(30.dp)
+                    .padding(5.dp)
+                    .clickable(
+                        onClick = {
+                            isBoundBoxEdit = !isBoundBoxEdit
+                        }),
+                contentDescription = "Edit Bounding box",
+                tint = if(isBoundBoxEdit)
+                    androidx.compose.ui.graphics.Color(0xFFFF9800) else
+                    androidx.compose.ui.graphics.Color(0xFFFFFFFF),
 
                 )
 
             Box(){
-                Text(objectInBoxCount.toString(), style = TextStyle(
-                    color = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-                    fontSize = 20.sp
-                ),
-                    modifier = Modifier.padding(5.dp))
+                Icon(
+                    painterResource(R.drawable.ic_flash_on),
+                    modifier = Modifier.padding(5.dp),
+                    contentDescription = "Camera",
+                    tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+                    )
             }
 
         }
@@ -238,7 +247,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                 ) {
                     var isProcessing = false
                     CameraPreviewWithImageProxy(
-                        frameIntervalMs = 800,
+                        frameIntervalMs = 500,
                         onFrame = { imageProxy ->
                             if (isProcessing) {
                                 imageProxy.close()
@@ -247,7 +256,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
                             isProcessing = true
 
-                            // ✅ STEP 3: Async processing
+                           //Async processing
                             //scope.launch(Dispatchers.Default) {
                                 try {
                                     val prep = preprocess(imageProxy)
@@ -324,22 +333,29 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
         }
 
-        toolbarComponent()
-        if(imageWidth>0 && imageHeight >0){
-        FocusBoxOverlay(
-            modifier = Modifier.fillMaxSize(),
-            imageWidth = imageWidth,
-            imageHeight = imageHeight,
-            isEditable = true,
-            isCenterGuideVisible = true,
-            onImageRectChanged = {
+        Column() {
+            toolbarComponent()
+            if(imageWidth>0 && imageHeight >0){
+                FocusBoxOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    imageWidth = imageWidth,
+                    imageHeight = imageHeight,
+                    isEditable = isBoundBoxEdit,
+                    //isCenterGuideVisible = true,
+                    onImageRectChanged = {
 
-                onFocusRectRect.invoke(it)
-            },
-            onScreenRectChanged = {
-                focusBox = it
+                        onFocusRectRect.invoke(it)
+                    },
+                    onScreenRectChanged = {
+                        focusBox = it
+                    }
+                )}else{
+                    Box(modifier = Modifier.fillMaxSize()){
+
+                    }
             }
-        )}
+        }
+
     }
 
 
