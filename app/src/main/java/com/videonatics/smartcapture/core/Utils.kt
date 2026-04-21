@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
+import com.videonatics.smartcapture.core.domain.model.FrameData
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
 import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
 import java.io.ByteArrayOutputStream
@@ -161,7 +162,6 @@ fun preprocess(
     r.forEach { buffer.putFloat(it) }
 
     buffer.rewind()
-
     return PreprocessResult(
         buffer = buffer,
         ratio = ratio,
@@ -416,7 +416,7 @@ fun Rect.toImageRect(
 
 fun mergeToFittedBoxes(
     detections: List<Detection>,
-    margin: Float = 20f
+    margin: Float = 5f
 ): List<Detection> {
 
 
@@ -591,4 +591,29 @@ fun distance(
     val dx = x2 - x1
     val dy = y2 - y1
     return kotlin.math.sqrt(dx * dx + dy * dy)
+}
+
+fun ImageProxy.toFrameData(): FrameData {
+    val yPlane = planes[0]
+    val uPlane = planes[1]
+    val vPlane = planes[2]
+
+    return FrameData(
+        y = yPlane.buffer.toByteArray(),
+        u = uPlane.buffer.toByteArray(),
+        v = vPlane.buffer.toByteArray(),
+        width = width,
+        height = height,
+        rotation = imageInfo.rotationDegrees,
+        yRowStride = yPlane.rowStride,
+        uvRowStride = uPlane.rowStride,
+        uvPixelStride = uPlane.pixelStride
+    )
+}
+
+fun ByteBuffer.toByteArray(): ByteArray {
+    rewind()
+    val arr = ByteArray(remaining())
+    get(arr)
+    return arr
 }

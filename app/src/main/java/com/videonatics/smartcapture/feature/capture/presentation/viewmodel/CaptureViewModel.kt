@@ -33,6 +33,9 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
     private var _inst = MutableStateFlow<AlignmentVector?>(null)
     val inst: Flow<AlignmentVector?> = _inst
+
+    private var _focusedObj = MutableStateFlow<RectF?>(null)
+    val focusedObj : Flow<RectF?> = _focusedObj
     fun setDetection(detections: List<Detection>) {
 
         _detectionList.clear()
@@ -50,6 +53,7 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
 
         val destDetection = findBestBox(_detectionList,_focusBox!!)
         destDetection?.apply {
+            _focusedObj.value = destDetection.rect
             val inst = generateInstruction(destDetection,_focusBox!!)
 
             val hint = generateAlignmentVector(destDetection, _focusBox!!)

@@ -60,10 +60,12 @@ import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.toBitmap
+import com.videonatics.smartcapture.core.toFrameData
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
 
@@ -76,6 +78,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
     val objectInsideFocusBoxCount = viewModel.objectInsideFocusBoxCount.collectAsState(0)
 
     val instruction = viewModel.inst.collectAsState(null)
+    val focusedObj = viewModel.focusedObj.collectAsState(null)
     val (interpreter, gpuDelegate) = remember {
         val options = Interpreter.Options()
         var delegate: GpuDelegate? = null
@@ -110,6 +113,7 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
             CapturePageComponent(
                 interpreter = interpreter,
                 objectInBoxCount = objectInsideFocusBoxCount.value,
+                focusedObj = focusedObj.value,
                 inst = instruction.value,
                 updateCanvasSize ={w,h->
                     viewModel.updateCanvasSize(w, h)
@@ -159,12 +163,22 @@ fun CapturePage(navController: NavController, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpreter? = null, objectInBoxCount: Int = 0,
-                         inst: AlignmentVector? = null, updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
+fun CapturePageComponent(modifier: Modifier = Modifier,
+                         interpreter :  Interpreter? = null,
+                         objectInBoxCount: Int = 0,
+                         focusedObj: RectF? = null,
+                         inst: AlignmentVector? = null,
+                         updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
-            CameraDetectionView(interpreter,objectInBoxCount, inst, updateCanvasSize ,onFocusRectRect,onDetectionChanges)
+            CameraDetectionView(interpreter,
+                objectInBoxCount,
+                focusedObj,
+                inst,
+                updateCanvasSize,
+                onFocusRectRect,
+                onDetectionChanges)
         }
 
     }
@@ -173,6 +187,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier, interpreter :  Interpret
 @Composable
 fun CameraDetectionView(interpreter: Interpreter?,
                         objectInBoxCount: Int,
+                        focusedObj: RectF? = null,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
@@ -182,7 +197,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
     val scope = rememberCoroutineScope()
 
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
-
     @Composable
     fun BoxScope.toolbarComponent() {
         Row(
@@ -222,46 +236,57 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         .fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-
+                    var isProcessing = false
                     CameraPreviewWithImageProxy(
-                        frameIntervalMs = 500,
+                        frameIntervalMs = 800,
                         onFrame = { imageProxy ->
-                            //scope.launch(Dispatchers.Default) {
-                            try {
-                                val prep = preprocess(imageProxy)
-
-                                val output = Array(1) { Array(3549) { FloatArray(9) } }
-
-                                interpreter?.run(prep.buffer, output)
-
-                                val detections = parseOutput(
-                                    output,
-                                    prep.ratio,
-                                    prep.dx,
-                                    prep.dy
-                                )
-
-                                val finalDetections = nmsPerClass(detections).filter { it.score > 0.9 }
-
-                                val mergedDetections = mergeToFittedBoxes(finalDetections, 5f)
-                                // IMPORTANT: use preprocess source dims (rotation-aware)
-                                imageWidth = prep.srcWidth.toFloat()
-                                imageHeight = prep.srcHeight.toFloat()
-
-                                detectionList = mergedDetections
-                                onDetectionChanges.invoke(mergedDetections)
-
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            } finally {
-                                imageProxy.close() // closed AFTER all usage
+                            if (isProcessing) {
+                                imageProxy.close()
+                                return@CameraPreviewWithImageProxy
                             }
-                            //}
 
-                        },
+                            isProcessing = true
+
+                            // ✅ STEP 3: Async processing
+                            //scope.launch(Dispatchers.Default) {
+                                try {
+                                    val prep = preprocess(imageProxy)
+
+                                    val output = Array(1) { Array(3549) { FloatArray(9) } }
+
+                                    interpreter?.run(prep.buffer, output)
+
+                                    val detections = parseOutput(
+                                        output,
+                                        prep.ratio,
+                                        prep.dx,
+                                        prep.dy
+                                    )
+
+                                    val finalDetections =
+                                        nmsPerClass(detections).filter { it.score > 0.9 }
+
+                                    val merged = mergeToFittedBoxes(finalDetections, 5f)
+
+                                  //  withContext(Dispatchers.Main) {
+                                        detectionList = merged.toList()
+                                        onDetectionChanges.invoke(merged)
+                                        imageWidth = prep.srcWidth.toFloat()
+                                        imageHeight = prep.srcHeight.toFloat()
+                                   // }
+
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                } finally {
+                                    isProcessing = false
+                                    imageProxy.close()
+                                }
+                            //}
+                        }
                     )
                     BoundingBoxOverlay(
-                        boxes = detectionList.map { d-> d.rect },
+                        boxes = detectionList,
+                        focusedObj = focusedObj,
                         imageWidth = imageWidth,
                         imageHeight = imageHeight,
                         modifier = Modifier.fillMaxSize(),

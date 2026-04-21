@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.videonatics.smartcapture.core.domain.model.Detection
 import java.util.concurrent.Executors
 
 @Composable
@@ -120,14 +121,17 @@ fun CameraPreviewWithImageProxy(
 
 @Composable
 fun BoundingBoxOverlay(
-    boxes: List<RectF>,
+    boxes: List<Detection>,
+    focusedObj: RectF? = null,
     imageWidth: Float,
     imageHeight: Float,
     modifier: Modifier = Modifier,
     boxColor: Color = Color.Red,
-    strokeWidth: Float = 4f,
+    strokeWidth: Float = 2f,
     onCanvasSizeChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
+    var detectionObjColor: Color
+    var stroke: Float
     Canvas(modifier = modifier) {
 
         val viewW = size.width
@@ -144,8 +148,15 @@ fun BoundingBoxOverlay(
         val dx = (viewW - scaledW) / 2f
         val dy = (viewH - scaledH) / 2f
 
-        boxes.forEach { rect ->
-
+        boxes.forEach { b ->
+            val rect = b.rect
+           if(b.rect == focusedObj){
+               detectionObjColor = Color.Yellow
+               stroke = 2 * strokeWidth
+            }else{
+               stroke = strokeWidth
+               detectionObjColor = boxColor
+            }
             val isNormalized = rect.right <= 1f
 
             val leftSrc = if (isNormalized) rect.left * imageWidth else rect.left
@@ -159,10 +170,10 @@ fun BoundingBoxOverlay(
             val bottom = bottomSrc * scale + dy
 
             drawRect(
-                color = boxColor,
+                color = detectionObjColor,
                 topLeft = Offset(left, top),
                 size = Size(right - left, bottom - top),
-                style = Stroke(width = strokeWidth)
+                style = Stroke(width = stroke)
             )
         }
     }
