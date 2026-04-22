@@ -10,6 +10,8 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -19,6 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.videonatics.smartcapture.core.presentation.view.UserHeader
+import com.videonatics.smartcapture.feature.home.presentation.HomeTab
 import com.videonatics.smartcapture.feature.splash.presentation.view.SplashPageComponent
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
@@ -33,7 +41,69 @@ fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomePageComponent(modifier: Modifier = Modifier, onSettings: ()-> Unit = {}, onCapture: () -> Unit = {}) {
+fun HomePageComponent(onSettings: () -> Unit={},
+                      onCapture: () -> Unit={}) {
+    val navController = rememberNavController()
+
+    val items = listOf(
+        HomeTab.Dashboard,
+        HomeTab.MyTask,
+        HomeTab.Profile
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    UserHeader()
+                },
+
+            )
+
+        },
+        bottomBar = {
+            NavigationBar {
+                val currentRoute =
+                    navController.currentBackStackEntryAsState().value?.destination?.route
+
+                items.forEach { tab ->
+                    NavigationBarItem(
+                        selected = currentRoute == tab.route,
+                        onClick = {
+                            navController.navigate(tab.route) {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = {
+                            Icon(tab.icon, contentDescription = tab.label)
+                        },
+                        label = {
+                            Text(tab.label)
+                        }
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+
+        NavHost(
+            navController = navController,
+            startDestination = HomeTab.MyTask.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable(HomeTab.Dashboard.route) { DashboardScreen() }
+            composable(HomeTab.MyTask.route) { MyTaskScreen() }
+            composable(HomeTab.Profile.route) { ProfileScreen() }
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomePageComponentS(modifier: Modifier = Modifier, onSettings: ()-> Unit = {}, onCapture: () -> Unit = {}) {
     return Scaffold(
         topBar = {
             TopAppBar(

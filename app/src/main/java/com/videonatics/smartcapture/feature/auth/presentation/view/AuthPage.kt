@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -136,13 +138,13 @@ fun LoginScreenComponent(
                     IconButton(onClick = {
                         passwordVisible = !passwordVisible
                     }) {
-//                        Icon(
-//                            imageVector = if (passwordVisible)
-//                                Icons.Default.Visibility
-//                            else
-//                                Icons.Default.VisibilityOff,
-//                            contentDescription = null
-//                        )
+                        Icon(
+                            imageVector = if (passwordVisible)
+                                Icons.Default.Visibility
+                            else
+                                Icons.Default.VisibilityOff,
+                            contentDescription = null
+                        )
                     }
                 }
             )
