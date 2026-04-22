@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,7 +15,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-
+    val repository: AuthRepository
 ) : ViewModel() {
 
     var email by mutableStateOf("")
@@ -36,11 +37,17 @@ class AuthViewModel @Inject constructor(
             isLoading = true
             error = null
 
-            delay(1500) // simulate API
 
             if (email == "test@test.com" && password == "123456") {
                 // success
-                _loginSuccess.emit(true)
+                val response = repository.login(email, password)
+                if (response.isFailure) {
+                    error = response.exceptionOrNull()?.message
+                }else{
+                    repository.setLoggedIn(true)
+                    _loginSuccess.emit(true)
+                }
+
 
             } else {
                 error = "Wrong email or password"

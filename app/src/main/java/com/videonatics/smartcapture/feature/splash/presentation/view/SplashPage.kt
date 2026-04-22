@@ -27,9 +27,19 @@ import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 fun SplashPage(navController: NavController, modifier: Modifier = Modifier) {
     val viewModel = hiltViewModel<SplashViewModel>()
     val splashLoad = viewModel.loadSplash.collectAsState(false).value
-    if(splashLoad){
-            navController.navigate("auth")
+    val isLoggedIn = viewModel.isLoggedIn.collectAsState(false).value
+
+
+    LaunchedEffect(splashLoad){
+        if(splashLoad){
+            if(isLoggedIn){
+                navController.navigate("home")
+            }else{
+                navController.navigate("auth")
+            }
         }
+    }
+
 
     return SplashPageComponent()
 }
