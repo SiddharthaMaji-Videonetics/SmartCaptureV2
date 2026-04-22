@@ -54,19 +54,22 @@ fun MyTaskScreen(
             title = "Task 1",
             name = "test1",
             location = "test1",
-            status = TaskStatus.IN_PROGRESS),
+            status = TaskStatus.IN_PROGRESS
+        ),
         Task(
             title = "Task 2",
             name = "test2",
             location = "test2",
-            status = TaskStatus.COMPLETED),
+            status = TaskStatus.COMPLETED
+        ),
         Task(
             title = "Task 3",
             name = "test3",
             location = "test3",
             status = TaskStatus.PENDING
         )
-    )
+    ),
+    onTaskOpen: () -> Unit ={}
 ) {
     LazyColumn(
         modifier = Modifier
@@ -81,7 +84,7 @@ fun MyTaskScreen(
        // item { WelcomeSection(userName, userEmail) }
 
         items(tasks) { task ->
-            TaskItem(task)
+            TaskItem(task,onTaskOpen)
         }
     }
 }

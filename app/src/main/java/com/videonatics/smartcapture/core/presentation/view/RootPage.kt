@@ -15,6 +15,7 @@ import com.videonatics.smartcapture.feature.details.presentation.view.CaptureDet
 import com.videonatics.smartcapture.feature.home.presentation.view.HomePage
 import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
 import com.videonatics.smartcapture.feature.splash.presentation.view.SplashPage
+import com.videonatics.smartcapture.feature.task.presentation.view.TaskPage
 import com.videonatics.smartcapture.ui.theme.ThemeMode
 
 @Composable
@@ -46,6 +47,18 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     hiltViewModel(parentEntry)
                 AuthPage(navController)
             }
+
+            composable(PageRoute.TASK.name) {
+
+                val parentEntry = remember(it) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel =
+                    hiltViewModel(parentEntry)
+                TaskPage(navController)
+            }
+
+
             composable(PageRoute.HOME.name) {
 
                 val parentEntry = remember(it) {
@@ -93,5 +106,5 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
 }
 
 enum class PageRoute{
-    AUTH, SPLASH,HOME, CAPTURE,IMAGE_DETAILS, SETTINGS, DEPTH_CHECK, OCR_SELECT
+    AUTH, SPLASH,HOME, TASK, CAPTURE,IMAGE_DETAILS, SETTINGS, DEPTH_CHECK, OCR_SELECT
 }

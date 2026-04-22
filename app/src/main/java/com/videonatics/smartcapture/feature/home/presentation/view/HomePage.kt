@@ -27,7 +27,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
-import com.videonatics.smartcapture.feature.splash.presentation.view.SplashPageComponent
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
@@ -36,13 +35,17 @@ fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
         navController.navigate("settings")
     },onCapture = {
         navController.navigate("capture")
-    })
+    },
+        onTaskOpen = {
+            navController.navigate("task")
+        })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePageComponent(onSettings: () -> Unit={},
-                      onCapture: () -> Unit={}) {
+                      onCapture: () -> Unit={},
+                      onTaskOpen: () -> Unit ={}) {
     val navController = rememberNavController()
 
     val items = listOf(
@@ -96,7 +99,7 @@ fun HomePageComponent(onSettings: () -> Unit={},
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(HomeTab.Dashboard.route) { DashboardScreen() }
-            composable(HomeTab.MyTask.route) { MyTaskScreen() }
+            composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
             composable(HomeTab.Profile.route) { ProfileScreen() }
         }
     }

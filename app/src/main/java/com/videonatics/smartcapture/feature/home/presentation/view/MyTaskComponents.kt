@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.home.presentation.view
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,11 +24,13 @@ import com.videonatics.smartcapture.feature.home.domain.model.Task
 import com.videonatics.smartcapture.feature.home.domain.model.TaskStatus
 
 @Composable
-fun TaskItem(task: Task) {
+fun TaskItem(task: Task, onTaskOpen: () -> Unit = {}) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp).clickable{
+                onTaskOpen.invoke()
+            },
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
