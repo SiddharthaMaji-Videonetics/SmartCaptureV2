@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
 import com.videonatics.smartcapture.feature.details.presentation.view.CaptureDetailsPage
 import com.videonatics.smartcapture.feature.home.presentation.view.HomePage
@@ -35,6 +36,15 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 onThemeSwitch.invoke(sharedViewModel.themeMode)
                 SplashPage(navController)
 
+            }
+            composable(PageRoute.AUTH.name) {
+
+                val parentEntry = remember(it) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel =
+                    hiltViewModel(parentEntry)
+                AuthPage(navController)
             }
             composable(PageRoute.HOME.name) {
 
@@ -83,5 +93,5 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
 }
 
 enum class PageRoute{
-    SPLASH,HOME, CAPTURE,IMAGE_DETAILS, SETTINGS, DEPTH_CHECK, OCR_SELECT
+    AUTH, SPLASH,HOME, CAPTURE,IMAGE_DETAILS, SETTINGS, DEPTH_CHECK, OCR_SELECT
 }
