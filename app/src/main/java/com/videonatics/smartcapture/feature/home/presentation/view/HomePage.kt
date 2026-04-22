@@ -1,8 +1,10 @@
 package com.videonatics.smartcapture.feature.home.presentation.view
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.filled.Settings
@@ -10,8 +12,11 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -20,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,29 +63,25 @@ fun HomePageComponent(
     val userName by viewModel.userName.collectAsState()
     val userType by viewModel.userType.collectAsState()
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val items = listOf(
         HomeTab.Dashboard,
         HomeTab.MyTask,
-        HomeTab.Profile
+        HomeTab.Settings
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    UserHeader(userName = userName, userType = userType)
-                },
-
-            )
-
-        },
-        bottomBar = {
-            NavigationBar {
-                val currentRoute =
-                    navController.currentBackStackEntryAsState().value?.destination?.route
-
+    if (isLandscape) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            NavigationRail(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ) {
                 items.forEach { tab ->
-                    NavigationBarItem(
+                    NavigationRailItem(
                         selected = currentRoute == tab.route,
                         onClick = {
                             navController.navigate(tab.route) {
@@ -99,20 +101,87 @@ fun HomePageComponent(
                     )
                 }
             }
-        }
-    ) { innerPadding ->
 
-        NavHost(
-            navController = navController,
-            startDestination = HomeTab.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(HomeTab.Dashboard.route) { DashboardScreen() }
-            composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
-            composable(HomeTab.Profile.route) { ProfileScreen() }
+            Scaffold(
+                topBar = {
+                    if (currentRoute != HomeTab.Settings.route) {
+                        TopAppBar(
+                            title = {
+                                UserHeader(userName = userName, userType = userType)
+                            },
+                        )
+                    }
+                }
+            ) { innerPadding ->
+                HomeNavHost(
+                    navController = navController,
+                    modifier = Modifier.padding(innerPadding),
+                    onTaskOpen = onTaskOpen
+                )
+            }
+        }
+    } else {
+        Scaffold(
+            topBar = {
+                if (currentRoute != HomeTab.Settings.route) {
+                    TopAppBar(
+                        title = {
+                            UserHeader(userName = userName, userType = userType)
+                        },
+                    )
+                }
+            },
+            bottomBar = {
+                NavigationBar {
+                    items.forEach { tab ->
+                        NavigationBarItem(
+                            selected = currentRoute == tab.route,
+                            onClick = {
+                                navController.navigate(tab.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = {
+                                Icon(tab.icon, contentDescription = tab.label)
+                            },
+                            label = {
+                                Text(tab.label)
+                            }
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            HomeNavHost(
+                navController = navController,
+                modifier = Modifier.padding(innerPadding),
+                onTaskOpen = onTaskOpen
+            )
         }
     }
 }
+
+@Composable
+fun HomeNavHost(
+    navController: androidx.navigation.NavHostController,
+    modifier: Modifier = Modifier,
+    onTaskOpen: () -> Unit
+) {
+    NavHost(
+        navController = navController,
+        startDestination = HomeTab.Dashboard.route,
+        modifier = modifier
+    ) {
+        composable(HomeTab.Dashboard.route) { DashboardScreen() }
+        composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
+        composable(HomeTab.Settings.route) { SettingsScreen() }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePageComponentS(modifier: Modifier = Modifier, onSettings: ()-> Unit = {}, onCapture: () -> Unit = {}) {
