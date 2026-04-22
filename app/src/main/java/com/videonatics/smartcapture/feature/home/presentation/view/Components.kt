@@ -25,7 +25,7 @@ fun DashboardScreen() {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { FilterTabs() }
+        /*item { FilterTabs() }*/
 
         item { WarningCard() }
 
@@ -43,7 +43,7 @@ fun DashboardScreen() {
 
         item { FailureReasons() }
 
-        item { ActiveTaskCard() }
+        /*item { ActiveTaskCard() }*/
     }
 }
 

@@ -65,9 +65,7 @@ fun TaskPageComponent(
     Scaffold(
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
-                ),
+
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -167,7 +165,6 @@ fun StageItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically

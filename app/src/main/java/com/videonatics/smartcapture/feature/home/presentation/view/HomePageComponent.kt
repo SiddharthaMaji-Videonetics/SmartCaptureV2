@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -96,9 +97,11 @@ fun WarningCard() {
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD))
     ) {
         Row(modifier = Modifier.padding(12.dp)) {
-            Icon(Icons.Default.Warning, contentDescription = null)
+            Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFFF9800))
             Spacer(Modifier.width(8.dp))
-            Text("Your pass rate is 0% — below 50%. Review actions.")
+            Text("Your pass rate is 0% — below 50%. Review actions.", style = TextStyle(
+                color = Color.Black
+            ))
         }
     }
 }
@@ -109,9 +112,12 @@ fun InfoCard() {
         colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
     ) {
         Row(modifier = Modifier.padding(12.dp)) {
-            Icon(Icons.Default.Info, contentDescription = null)
+            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF1976D2))
             Spacer(Modifier.width(8.dp))
-            Text("You have 2 override requests awaiting review.")
+            Text("You have 2 override requests awaiting review.", style = TextStyle(
+                color = Color.Black
+            )
+            )
         }
     }
 }
@@ -155,18 +161,24 @@ fun StagePassRate() {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
             items.forEach {
-                Column(
-                    modifier = Modifier
-                        .background(Color(0xFFFFEBEE), RoundedCornerShape(8.dp))
-                        .padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("0%", color = Color.Red)
-                    Text(it, style = MaterialTheme.typography.bodySmall)
+                Box(
+                    modifier = Modifier.padding(5.dp)
+
+                ){
+                    Column(
+                        modifier = Modifier
+                            .background(Color(0xFFFFEBEE), RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("0%", color = Color.Red)
+                        Text(it, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
+
             }
         }
     }
