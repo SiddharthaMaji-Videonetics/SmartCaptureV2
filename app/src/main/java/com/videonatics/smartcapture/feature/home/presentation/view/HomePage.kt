@@ -34,6 +34,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
@@ -41,19 +42,26 @@ import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
 fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
-    return HomePageComponent(onSettings = {
-        navController.navigate("settings")
-    },onCapture = {
-        navController.navigate("capture")
-    },
+    return HomePageComponent(
+        onNavigateToLanguage = {
+            navController.navigate(PageRoute.LANGUAGE.name)
+        },
+        onSettings = {
+            navController.navigate("settings")
+        },
+        onCapture = {
+            navController.navigate("capture")
+        },
         onTaskOpen = {
             navController.navigate("task")
-        })
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePageComponent(
+    onNavigateToLanguage: () -> Unit = {},
     onSettings: () -> Unit = {},
     onCapture: () -> Unit = {},
     onTaskOpen: () -> Unit = {},
@@ -116,7 +124,8 @@ fun HomePageComponent(
                 HomeNavHost(
                     navController = navController,
                     modifier = Modifier.padding(innerPadding),
-                    onTaskOpen = onTaskOpen
+                    onTaskOpen = onTaskOpen,
+                    onNavigateToLanguage = onNavigateToLanguage
                 )
             }
         }
@@ -159,7 +168,8 @@ fun HomePageComponent(
             HomeNavHost(
                 navController = navController,
                 modifier = Modifier.padding(innerPadding),
-                onTaskOpen = onTaskOpen
+                onTaskOpen = onTaskOpen,
+                onNavigateToLanguage = onNavigateToLanguage
             )
         }
     }
@@ -169,7 +179,8 @@ fun HomePageComponent(
 fun HomeNavHost(
     navController: androidx.navigation.NavHostController,
     modifier: Modifier = Modifier,
-    onTaskOpen: () -> Unit
+    onTaskOpen: () -> Unit,
+    onNavigateToLanguage: () -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -178,7 +189,9 @@ fun HomeNavHost(
     ) {
         composable(HomeTab.Dashboard.route) { DashboardScreen() }
         composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
-        composable(HomeTab.Settings.route) { SettingsScreen() }
+        composable(HomeTab.Settings.route) { 
+            SettingsScreen(onNavigateToLanguage = onNavigateToLanguage) 
+        }
     }
 }
 

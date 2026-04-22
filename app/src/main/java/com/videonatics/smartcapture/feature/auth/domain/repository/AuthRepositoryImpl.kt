@@ -13,7 +13,7 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun login(email: String, password: String): Result<Boolean> {
         // Fake login for testing
         delay(2000) // Simulate network delay
-        return if (email == "admin@admin.com" && password == "admin") {
+        return if (email == "admin@admin.com" && password == "admin123") {
             Result.success(true)
         } else {
             // Fallback to real remote call if not the fake credentials

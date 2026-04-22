@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.feature.home.domain.model.DashboardModel
 import com.videonatics.smartcapture.feature.home.domain.model.FailureReasonModel
 import com.videonatics.smartcapture.feature.home.domain.model.StagePassRateModel
@@ -248,7 +249,9 @@ fun MyTaskContent(
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    onNavigateToLanguage: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -276,7 +279,7 @@ fun SettingsScreen() {
             icon = Icons.Default.Language,
             title = "Language",
             subtitle = "English (United States)",
-            onClick = { /* Handle Language click */ }
+            onClick = onNavigateToLanguage
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 0.5.dp)

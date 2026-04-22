@@ -14,6 +14,7 @@ class Pref(context: Context) {
         private const val USER_NAME = "user_name"
         private const val USER_EMAIL = "user_email"
         private const val USER_TYPE = "user_type"
+        private const val SELECTED_LANGUAGE_CODE = "selected_language_code"
     }
 
     private val sharedPreferences = context.getSharedPreferences(
@@ -49,4 +50,8 @@ class Pref(context: Context) {
     var userType: String
         get() = sharedPreferences.getString(USER_TYPE, "") ?: ""
         set(value) = sharedPreferences.edit { putString(USER_TYPE, value) }
+
+    var selectedLanguageCode: String
+        get() = sharedPreferences.getString(SELECTED_LANGUAGE_CODE, "en") ?: "en"
+        set(value) = sharedPreferences.edit { putString(SELECTED_LANGUAGE_CODE, value) }
 }
