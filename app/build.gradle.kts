@@ -5,6 +5,7 @@ plugins {
 
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -85,4 +86,11 @@ dependencies {
 
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
     implementation ("androidx.compose.material:material-icons-extended")
+
+    // Ktor
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.ktor.client.logging)
 }

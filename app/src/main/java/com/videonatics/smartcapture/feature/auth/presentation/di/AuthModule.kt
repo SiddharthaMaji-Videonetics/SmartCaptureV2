@@ -7,6 +7,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
 import javax.inject.Singleton
 
 @Module
@@ -14,7 +15,7 @@ import javax.inject.Singleton
 object AuthModule {
     @Provides
     @Singleton
-    fun provideAuthRepository(pref: Pref): AuthRepository {
-        return AuthRepositoryImpl(pref)
+    fun provideAuthRepository(client: HttpClient, pref: Pref): AuthRepository {
+        return AuthRepositoryImpl(client, pref)
     }
 }

@@ -7,7 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -15,7 +14,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    val repository: AuthRepository
+    private val repository: AuthRepository
 ) : ViewModel() {
 
     var email by mutableStateOf("")
@@ -23,13 +22,16 @@ class AuthViewModel @Inject constructor(
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 
-    val _loginSuccess = MutableSharedFlow<Boolean>()
+    private val _loginSuccess = MutableSharedFlow<Boolean>()
     val loginSuccess = _loginSuccess.asSharedFlow()
 
-
     fun login() {
-        if (email.isBlank() || password.length < 6) {
-            error = "Invalid credentials"
+        if (email.isBlank()) {
+            error = "Email cannot be empty"
+            return
+        }
+        if (password.isBlank()) {
+            error = "Password cannot be empty"
             return
         }
 
@@ -37,20 +39,17 @@ class AuthViewModel @Inject constructor(
             isLoading = true
             error = null
 
-
-            if (email == "test@test.com" && password == "123456") {
-                // success
-                val response = repository.login(email, password)
-                if (response.isFailure) {
-                    error = response.exceptionOrNull()?.message
-                }else{
+            val result = repository.login(email, password)
+            
+            result.onSuccess { success ->
+                if (success) {
                     repository.setLoggedIn(true)
                     _loginSuccess.emit(true)
+                } else {
+                    error = "Login failed"
                 }
-
-
-            } else {
-                error = "Wrong email or password"
+            }.onFailure { e ->
+                error = e.message ?: "An unexpected error occurred"
             }
 
             isLoading = false
