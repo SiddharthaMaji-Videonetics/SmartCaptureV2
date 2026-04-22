@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +19,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,17 +50,13 @@ fun CaptureDetailsPage(modifier: Modifier = Modifier,
         )
     }
 
-    LaunchedEffect(Unit) {
-        bmp?.apply {
-            val result = classifier.classify(bmp)
-            print(result.label)
-        }
-    }
+
 
 
 
     ImageAnalysisPageComponent(capturedImage = bmp,
-        capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),){
+        capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
+        classifier = classifier){
         navController.popBackStack()
     }
 }
@@ -66,7 +66,9 @@ fun CaptureDetailsPage(modifier: Modifier = Modifier,
 fun ImageAnalysisPageComponent(modifier: Modifier = Modifier,
                                capturedImage: Bitmap?=null,
                                capturedImageBoundingBox: RectF?=null,
+                               classifier: FatBoxClassifier?=null,
                                onClose:()-> Unit={}) {
+    var contentType by remember { mutableStateOf("Unknown") }
     Scaffold() {
         Box(modifier = modifier.padding(it).fillMaxSize()){
             Column(
@@ -85,7 +87,15 @@ fun ImageAnalysisPageComponent(modifier: Modifier = Modifier,
                             rect = capturedImageBoundingBox,
                             imageWidth = 480f,
                             imageHeight = 640f,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            onTransformedImage = {
+                                val result = classifier?.classify(it)
+                                result?.apply {
+                                    Log.e("class",result.label)
+                                    contentType = if(result.label == "FatBoxNot") "Not FatBox" else "FatBox"
+                                }
+
+                            }
                         )
 
                     }
@@ -111,7 +121,7 @@ fun ImageAnalysisPageComponent(modifier: Modifier = Modifier,
                                     Text("Content Type")
                                 },
                                 supportingContent = {
-                                    Text("Unknown")
+                                    Text(contentType)
                                 }
                             )
                         }

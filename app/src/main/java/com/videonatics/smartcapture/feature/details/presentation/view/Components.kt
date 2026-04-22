@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,21 +40,26 @@ fun ZoomableImageWithBoundingBox(
     imageHeight: Float,
     modifier: Modifier = Modifier,
     boxColor: Color = Color.Red,
-    strokeWidth: Dp = 3.dp
+    strokeWidth: Dp = 3.dp,
+    onTransformedImage: (Bitmap) -> Unit = {}
 ) {
+
     var userScale by remember { mutableStateOf(1f) }
     var userOffset by remember { mutableStateOf(Offset.Zero) }
 
     val minScale = 1f
     val maxScale = 5f
 
+    // 👇 Track gesture end
+    var isTransforming by remember { mutableStateOf(false) }
+
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        isTransforming = true
+
         val newScale = (userScale * zoomChange).coerceIn(minScale, maxScale)
-
-        // Adjust pan sensitivity based on zoom
         val scaleFactor = newScale / userScale
-        userScale = newScale
 
+        userScale = newScale
         userOffset += panChange
     }
 
@@ -69,7 +75,20 @@ fun ZoomableImageWithBoundingBox(
                 )
             }
             .transformable(state = transformState)
+            .pointerInput(Unit) {
+                // Detect gesture end
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent()
+                        if (isTransforming) {
+                            isTransforming = false
+                        }
+                    }
+                }
+            }
     ) {
+
+        var latestOutput by remember { mutableStateOf<Bitmap?>(null) }
 
         Canvas(modifier = Modifier.fillMaxSize()) {
 
@@ -78,7 +97,6 @@ fun ZoomableImageWithBoundingBox(
             val canvasW = size.width
             val canvasH = size.height
 
-            // 🔹 Base FIT scale (like ImageView FIT_CENTER)
             val baseScale = minOf(
                 canvasW / imageWidth,
                 canvasH / imageHeight
@@ -87,28 +105,79 @@ fun ZoomableImageWithBoundingBox(
             val displayedW = imageWidth * baseScale
             val displayedH = imageHeight * baseScale
 
-            // 🔹 TRUE CENTERING (this is the key)
             val centerOffset = Offset(
                 (canvasW - displayedW) / 2f,
                 (canvasH - displayedH) / 2f
             )
 
             val finalScale = baseScale * userScale
-
-            // 🔥 IMPORTANT: Build final translation in screen space
             val finalOffset = centerOffset + userOffset
 
+            // =============================
+            // 🔥 Compute visible image rect
+            // =============================
+            val visibleLeft = ((0f - finalOffset.x) / finalScale)
+                .coerceIn(0f, imageWidth)
+
+            val visibleTop = ((0f - finalOffset.y) / finalScale)
+                .coerceIn(0f, imageHeight)
+
+            val visibleRight = ((canvasW - finalOffset.x) / finalScale)
+                .coerceIn(0f, imageWidth)
+
+            val visibleBottom = ((canvasH - finalOffset.y) / finalScale)
+                .coerceIn(0f, imageHeight)
+
+            val visibleWidth = (visibleRight - visibleLeft).coerceAtLeast(1f)
+            val visibleHeight = (visibleBottom - visibleTop).coerceAtLeast(1f)
+
+            // =============================
+            // 🎯 Create cropped bitmap
+            // =============================
+            val safeLeft = visibleLeft.toInt().coerceIn(0, bitmap.width - 1)
+            val safeTop = visibleTop.toInt().coerceIn(0, bitmap.height - 1)
+
+            val safeWidth = visibleWidth.toInt()
+                .coerceAtMost(bitmap.width - safeLeft)
+                .coerceAtLeast(1)
+
+            val safeHeight = visibleHeight.toInt()
+                .coerceAtMost(bitmap.height - safeTop)
+                .coerceAtLeast(1)
+
+            val cropped = try {
+                Bitmap.createBitmap(
+                    bitmap,
+                    safeLeft,
+                    safeTop,
+                    safeWidth,
+                    safeHeight
+                )
+            } catch (e: Exception) {
+                null
+            }
+
+            val output = cropped?.let {
+                Bitmap.createScaledBitmap(
+                    it,
+                    canvasW.toInt(),
+                    canvasH.toInt(),
+                    true
+                )
+            }
+
+            latestOutput = output
+
+            // =============================
+            // 🎨 DRAW
+            // =============================
             withTransform({
 
-                // Apply translation in screen space
                 translate(finalOffset.x, finalOffset.y)
-
-                // Then scale inside image space
                 scale(finalScale, finalScale)
 
             }) {
 
-                // Draw image in ORIGINAL coordinate system
                 drawImage(
                     image = bitmap.asImageBitmap(),
                     dstSize = IntSize(
@@ -117,13 +186,21 @@ fun ZoomableImageWithBoundingBox(
                     )
                 )
 
-                // Draw bounding box in SAME coordinate system
                 drawRect(
                     color = boxColor,
                     topLeft = Offset(rect.left, rect.top),
                     size = Size(rect.width(), rect.height()),
                     style = Stroke(width = strokeWidth.toPx() / finalScale)
                 )
+            }
+        }
+
+        // =============================
+        // 🚀 Emit ONLY when gesture ends
+        // =============================
+        LaunchedEffect(isTransforming) {
+            if (!isTransforming) {
+                latestOutput?.let { onTransformedImage(it) }
             }
         }
     }
