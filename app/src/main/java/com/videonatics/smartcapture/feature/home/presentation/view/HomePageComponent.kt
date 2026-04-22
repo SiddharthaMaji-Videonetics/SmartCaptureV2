@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
@@ -38,8 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.videonatics.smartcapture.feature.home.data.model.FailureReasonResponse
-import com.videonatics.smartcapture.feature.home.data.model.StagePassRateResponse
+import com.videonatics.smartcapture.feature.home.domain.model.FailureReasonModel
+import com.videonatics.smartcapture.feature.home.domain.model.StagePassRateModel
 
 @Composable
 fun TopBar() {
@@ -152,7 +151,7 @@ fun PassRateCard(passRate: Int) {
 }
 
 @Composable
-fun StagePassRate(stageRates: List<StagePassRateResponse>) {
+fun StagePassRate(stageRates: List<StagePassRateModel>) {
     Column {
         Text("STAGE PASS RATE", fontWeight = FontWeight.Bold)
 
@@ -182,7 +181,7 @@ fun StagePassRate(stageRates: List<StagePassRateResponse>) {
 }
 
 @Composable
-fun FailureReasons(reasons: List<FailureReasonResponse>) {
+fun FailureReasons(reasons: List<FailureReasonModel>) {
     Column {
         Text("COMMON FAILURE REASONS", fontWeight = FontWeight.Bold)
 

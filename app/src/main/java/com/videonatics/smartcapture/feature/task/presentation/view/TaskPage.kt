@@ -40,7 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
-import com.videonatics.smartcapture.feature.task.data.model.TaskResponse
+import com.videonatics.smartcapture.feature.task.domain.model.TaskModel
 import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
@@ -61,7 +61,7 @@ fun TaskPage(
         error = error,
         onBack = { navController.popBackStack() },
         onStageClick = { task ->
-            if (!task.is_locked) {
+            if (!task.isLocked) {
                 navController.navigate(PageRoute.CAPTURE.name)
             }
         }
@@ -72,11 +72,11 @@ fun TaskPage(
 @Composable
 fun TaskPageComponent(
     modifier: Modifier = Modifier,
-    tasks: List<TaskResponse> = emptyList(),
+    tasks: List<TaskModel> = emptyList(),
     isLoading: Boolean = false,
     error: String? = null,
     onBack: () -> Unit = {},
-    onStageClick: (TaskResponse) -> Unit = {}
+    onStageClick: (TaskModel) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -185,7 +185,7 @@ fun StatusChip(status: String) {
 
 @Composable
 fun StageItem(
-    task: TaskResponse,
+    task: TaskModel,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -200,10 +200,10 @@ fun StageItem(
             Text(
                 text = task.title,
                 fontWeight = FontWeight.Bold,
-                color = if (task.is_locked) Color.Gray else Color(0xFF424242)
+                color = if (task.isLocked) Color.Gray else Color(0xFF424242)
             )
         }
-        if (task.is_locked) {
+        if (task.isLocked) {
             Icon(
                 Icons.Default.Lock,
                 contentDescription = "Locked",

@@ -3,7 +3,7 @@ package com.videonatics.smartcapture.feature.home.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.videonatics.smartcapture.core.Pref
-import com.videonatics.smartcapture.feature.home.data.model.DashboardResponse
+import com.videonatics.smartcapture.feature.home.domain.model.DashboardModel
 import com.videonatics.smartcapture.feature.home.domain.repository.HomeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +17,7 @@ class HomeViewModel @Inject constructor(
     private val pref: Pref
 ) : ViewModel() {
 
-    private val _dashboardData = MutableStateFlow<DashboardResponse?>(null)
+    private val _dashboardData = MutableStateFlow<DashboardModel?>(null)
     val dashboardData = _dashboardData.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
@@ -58,10 +58,10 @@ class HomeViewModel @Inject constructor(
                 .onSuccess {
                     pref.userName = it.username
                     pref.userEmail = it.email
-                    pref.userType = it.user_type
+                    pref.userType = it.userType
                     
                     _userName.value = it.username
-                    _userType.value = it.user_type
+                    _userType.value = it.userType
                 }
         }
     }

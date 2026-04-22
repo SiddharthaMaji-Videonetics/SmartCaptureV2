@@ -1,8 +1,11 @@
 package com.videonatics.smartcapture.feature.task.data.repository
 
 import com.videonatics.smartcapture.feature.task.data.datasource.remote.TaskRemoteDataSource
+import com.videonatics.smartcapture.feature.task.data.mapper.toDomain
 import com.videonatics.smartcapture.feature.task.data.model.MyTaskResponse
 import com.videonatics.smartcapture.feature.task.data.model.TaskResponse
+import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
+import com.videonatics.smartcapture.feature.task.domain.model.TaskModel
 import com.videonatics.smartcapture.feature.task.domain.repository.TaskRepository
 import kotlinx.coroutines.delay
 import javax.inject.Inject
@@ -14,9 +17,9 @@ class TaskRepositoryImpl @Inject constructor(
         statusFilter: String?,
         skip: Int,
         limit: Int
-    ): Result<List<TaskResponse>> {
+    ): Result<List<TaskModel>> {
         // Uncomment below to use real remote data
-        // return remote.getTasks(statusFilter, skip, limit)
+        // return remote.getTasks(statusFilter, skip, limit).map { it.map { response -> response.toDomain() } }
 
         delay(1000)
         
@@ -27,12 +30,12 @@ class TaskRepositoryImpl @Inject constructor(
             TaskResponse(104, "Network Setup - Project X", "Configuring dedicated VLAN for camera traffic.", "OPEN", "2023-12-06T08:00:00Z", "2023-12-06T08:00:00Z")
         )
 
-        val processedTasks = mutableListOf<TaskResponse>()
+        val processedTasks = mutableListOf<TaskModel>()
         var previousTaskCompleted = true
         
         for (task in rawFakeTasks) {
             val isLocked = !previousTaskCompleted
-            processedTasks.add(task.copy(is_locked = isLocked))
+            processedTasks.add(task.copy(is_locked = isLocked).toDomain())
             previousTaskCompleted = task.status.equals("COMPLETED", ignoreCase = true)
         }
 
@@ -45,9 +48,9 @@ class TaskRepositoryImpl @Inject constructor(
         return Result.success(filteredTasks)
     }
 
-    override suspend fun getMyTasks(): Result<List<MyTaskResponse>> {
+    override suspend fun getMyTasks(): Result<List<MyTaskModel>> {
         // Uncomment below to use real remote data
-        // return remote.getMyTasks()
+        // return remote.getMyTasks().map { it.map { response -> response.toDomain() } }
 
         delay(1000)
         
@@ -72,6 +75,6 @@ class TaskRepositoryImpl @Inject constructor(
             )
         )
         
-        return Result.success(fakeMyTasks)
+        return Result.success(fakeMyTasks.map { it.toDomain() })
     }
 }

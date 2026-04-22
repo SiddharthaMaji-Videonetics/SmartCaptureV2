@@ -2,8 +2,8 @@ package com.videonatics.smartcapture.feature.task.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.videonatics.smartcapture.feature.task.data.model.MyTaskResponse
-import com.videonatics.smartcapture.feature.task.data.model.TaskResponse
+import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
+import com.videonatics.smartcapture.feature.task.domain.model.TaskModel
 import com.videonatics.smartcapture.feature.task.domain.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,10 +16,10 @@ class TaskViewModel @Inject constructor(
     private val repository: TaskRepository
 ) : ViewModel() {
 
-    private val _tasks = MutableStateFlow<List<TaskResponse>>(emptyList())
+    private val _tasks = MutableStateFlow<List<TaskModel>>(emptyList())
     val tasks = _tasks.asStateFlow()
 
-    private val _myTasks = MutableStateFlow<List<MyTaskResponse>>(emptyList())
+    private val _myTasks = MutableStateFlow<List<MyTaskModel>>(emptyList())
     val myTasks = _myTasks.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)

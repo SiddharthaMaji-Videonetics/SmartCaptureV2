@@ -19,14 +19,13 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.videonatics.smartcapture.feature.home.data.model.DashboardResponse
-import com.videonatics.smartcapture.feature.home.data.model.FailureReasonResponse
-import com.videonatics.smartcapture.feature.home.data.model.StagePassRateResponse
+import com.videonatics.smartcapture.feature.home.domain.model.DashboardModel
+import com.videonatics.smartcapture.feature.home.domain.model.FailureReasonModel
+import com.videonatics.smartcapture.feature.home.domain.model.StagePassRateModel
 import com.videonatics.smartcapture.feature.home.domain.model.Task
 import com.videonatics.smartcapture.feature.home.domain.model.TaskStatus
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
-import com.videonatics.smartcapture.feature.task.data.model.MyTaskResponse
-import com.videonatics.smartcapture.feature.task.data.model.TaskResponse
+import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
 import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
@@ -59,7 +58,7 @@ private fun DashboardScreenWithViewModel(
 
 @Composable
 fun DashboardContent(
-    data: DashboardResponse?,
+    data: DashboardModel?,
     isLoading: Boolean
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -74,25 +73,25 @@ fun DashboardContent(
             ) {
                 /*item { FilterTabs() }*/
 
-                data.warning_message?.let {
+                data.warningMessage?.let {
                     item { WarningCard(it) }
                 }
 
-                data.info_message?.let {
+                data.infoMessage?.let {
                     item { InfoCard(it) }
                 }
 
-                item { StatsCard(title = "Active Tasks", value = data.active_tasks.toString()) }
+                item { StatsCard(title = "Active Tasks", value = data.activeTasks.toString()) }
 
-                item { PassRateCard(passRate = data.pass_rate) }
+                item { PassRateCard(passRate = data.passRate) }
 
-                item { StatsCard(title = "Completed", value = data.completed_tasks.toString()) }
+                item { StatsCard(title = "Completed", value = data.completedTasks.toString()) }
 
-                item { StatsCard(title = "Overrides Pending", value = data.overrides_pending.toString()) }
+                item { StatsCard(title = "Overrides Pending", value = data.overridesPending.toString()) }
 
-                item { StagePassRate(data.stage_pass_rates) }
+                item { StagePassRate(data.stagePassRates) }
 
-                item { FailureReasons(data.failure_reasons) }
+                item { FailureReasons(data.failureReasons) }
 
                 /*item { ActiveTaskCard() }*/
             }
@@ -139,7 +138,7 @@ private fun MyTaskScreenWithViewModel(
 
 @Composable
 fun MyTaskContent(
-    myTasks: List<MyTaskResponse>,
+    myTasks: List<MyTaskModel>,
     isLoading: Boolean,
     onTaskOpen: () -> Unit = {}
 ) {
@@ -153,10 +152,10 @@ fun MyTaskContent(
                     .background(MaterialTheme.colorScheme.background)
             ) {
                 items(myTasks) { task ->
-                    // Mapping MyTaskResponse to Home Task model for UI compatibility
+                    // Mapping MyTaskModel to Home Task model for UI compatibility
                     val mappedTask = Task(
-                        title = task.client_name,
-                        name = task.site_name,
+                        title = task.clientName,
+                        name = task.siteName,
                         location = task.city,
                         status = try {
                             TaskStatus.valueOf(task.status)
@@ -178,49 +177,49 @@ fun ProfileScreen() {
     }
 }
 
-private val fakeDashboardData = DashboardResponse(
-    active_tasks = 2,
-    pass_rate = 45,
-    completed_tasks = 10,
-    overrides_pending = 1,
-    warning_message = "Your pass rate is 45% — below 50%. Review actions.",
-    info_message = "You have 1 override request awaiting review.",
-    stage_pass_rates = listOf(
-        StagePassRateResponse("CL-PRE", 40),
-        StagePassRateResponse("OP-PRE", 50),
-        StagePassRateResponse("OP-POST", 30),
-        StagePassRateResponse("CL-POST", 60)
+private val fakeDashboardData = DashboardModel(
+    activeTasks = 2,
+    passRate = 45,
+    completedTasks = 10,
+    overridesPending = 1,
+    warningMessage = "Your pass rate is 45% — below 50%. Review actions.",
+    infoMessage = "You have 1 override request awaiting review.",
+    stagePassRates = listOf(
+        StagePassRateModel("CL-PRE", 40),
+        StagePassRateModel("OP-PRE", 50),
+        StagePassRateModel("OP-POST", 30),
+        StagePassRateModel("CL-POST", 60)
     ),
-    failure_reasons = listOf(
-        FailureReasonResponse("Screenshot detected", 2),
-        FailureReasonResponse("Asset needs cleaning", 1),
-        FailureReasonResponse("ID not readable", 3)
+    failureReasons = listOf(
+        FailureReasonModel("Screenshot detected", 2),
+        FailureReasonModel("Asset needs cleaning", 1),
+        FailureReasonModel("ID not readable", 3)
     )
 )
 
 private val fakeMyTasks = listOf(
-    MyTaskResponse(
+    MyTaskModel(
         id = 1,
-        site_name = "Kolkata Site A",
-        client_name = "Videonatics",
+        siteName = "Kolkata Site A",
+        clientName = "Videonatics",
         city = "Kolkata",
         status = "IN_PROGRESS",
         description = "Ongoing surveillance task",
         stages = emptyList()
     ),
-    MyTaskResponse(
+    MyTaskModel(
         id = 2,
-        site_name = "Mumbai Hub",
-        client_name = "Reliance",
+        siteName = "Mumbai Hub",
+        clientName = "Reliance",
         city = "Mumbai",
         status = "PENDING",
         description = "Awaiting deployment",
         stages = emptyList()
     ),
-    MyTaskResponse(
+    MyTaskModel(
         id = 3,
-        site_name = "Delhi North",
-        client_name = "Airtel",
+        siteName = "Delhi North",
+        clientName = "Airtel",
         city = "New Delhi",
         status = "COMPLETED",
         description = "Task successfully finished",
