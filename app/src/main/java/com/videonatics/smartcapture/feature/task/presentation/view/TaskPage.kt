@@ -11,15 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,8 +26,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,18 +36,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
+import com.videonatics.smartcapture.feature.task.data.model.TaskResponse
+import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun TaskPage(navController: NavController, modifier: Modifier = Modifier) {
+fun TaskPage(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    viewModel: TaskViewModel = hiltViewModel()
+) {
+    val tasks by viewModel.tasks.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
     TaskPageComponent(
         modifier = modifier,
+        tasks = tasks,
+        isLoading = isLoading,
+        error = error,
         onBack = { navController.popBackStack() },
-        onStageClick = { stage ->
-            if (!stage.isLocked) {
+        onStageClick = { task ->
+            if (!task.is_locked) {
                 navController.navigate(PageRoute.CAPTURE.name)
             }
         }
@@ -59,20 +72,21 @@ fun TaskPage(navController: NavController, modifier: Modifier = Modifier) {
 @Composable
 fun TaskPageComponent(
     modifier: Modifier = Modifier,
+    tasks: List<TaskResponse> = emptyList(),
+    isLoading: Boolean = false,
+    error: String? = null,
     onBack: () -> Unit = {},
-    onStageClick: (TaskStage) -> Unit = {}
+    onStageClick: (TaskResponse) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Rounded.ArrowBackIosNew,
                             contentDescription = "Back",
                             modifier = Modifier.size(20.dp),
-
                         )
                     }
                 },
@@ -81,42 +95,54 @@ fun TaskPageComponent(
                         text = "Task Detail",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-
                     )
                 }
             )
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-
         ) {
-            item {
-                TaskDetailSection()
-            }
-            item {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (error != null) {
                 Text(
-                    text = "CAPTURE STAGES",
+                    text = error,
+                    color = Color.Red,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.Gray,
-                    fontWeight = FontWeight.Bold
+                        .align(Alignment.Center)
+                        .padding(16.dp)
                 )
-            }
-            items(getSampleStages()) { stage ->
-                StageItem(
-                    stage = stage,
-                    onClick = { onStageClick(stage) }
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    thickness = 0.5.dp,
-                    color = Color.LightGray
-                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        TaskDetailSection()
+                    }
+                    item {
+                        Text(
+                            text = "CAPTURE STAGES",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    items(tasks) { task ->
+                        StageItem(
+                            task = task,
+                            onClick = { onStageClick(task) }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            thickness = 0.5.dp,
+                            color = Color.LightGray
+                        )
+                    }
+                }
             }
         }
     }
@@ -159,7 +185,7 @@ fun StatusChip(status: String) {
 
 @Composable
 fun StageItem(
-    stage: TaskStage,
+    task: TaskResponse,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -170,34 +196,25 @@ fun StageItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("STAGE ${stage.number}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text("STAGE ${task.id}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             Text(
-                text = stage.title,
+                text = task.title,
                 fontWeight = FontWeight.Bold,
-                color = if (stage.isLocked) Color.Gray else Color(0xFF424242)
+                color = if (task.is_locked) Color.Gray else Color(0xFF424242)
             )
         }
-        if (stage.status != null) {
-            StatusChip(status = stage.status)
-        } else if (stage.isLocked) {
-            Icon(Icons.Default.Lock, contentDescription = "Locked", tint = Color(0xFFFFCC80), modifier = Modifier.size(20.dp))
+        if (task.is_locked) {
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = "Locked",
+                tint = Color(0xFFFFCC80),
+                modifier = Modifier.size(20.dp)
+            )
+        } else {
+            StatusChip(status = task.status)
         }
     }
 }
-
-data class TaskStage(
-    val number: Int,
-    val title: String,
-    val status: String? = null,
-    val isLocked: Boolean = false
-)
-
-fun getSampleStages() = listOf(
-    TaskStage(1, "Closed (Pre-Install)", status = "IN PROGRESS"),
-    TaskStage(2, "Open (Pre-install)", isLocked = true),
-    TaskStage(3, "Open (Post-install)", isLocked = true),
-    TaskStage(4, "Closed (Post-install)", isLocked = true)
-)
 
 @Preview(showBackground = true)
 @Composable

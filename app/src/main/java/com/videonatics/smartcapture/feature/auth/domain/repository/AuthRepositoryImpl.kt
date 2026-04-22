@@ -2,14 +2,7 @@ package com.videonatics.smartcapture.feature.auth.domain.repository
 
 import com.videonatics.smartcapture.core.Pref
 import com.videonatics.smartcapture.feature.auth.data.datasource.remote.AuthRemoteDataSource
-import com.videonatics.smartcapture.feature.auth.data.model.LoginRequest
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
-import io.ktor.client.HttpClient
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 
@@ -18,7 +11,14 @@ class AuthRepositoryImpl @Inject constructor(
     private val pref: Pref
 ) : AuthRepository {
     override suspend fun login(email: String, password: String): Result<Boolean> {
-        return remote.login(email, password)
+        // Fake login for testing
+        delay(2000) // Simulate network delay
+        return if (email == "admin@admin.com" && password == "admin") {
+            Result.success(true)
+        } else {
+            // Fallback to real remote call if not the fake credentials
+            remote.login(email, password)
+        }
     }
 
     override suspend fun setLoggedIn(isLogged: Boolean) {

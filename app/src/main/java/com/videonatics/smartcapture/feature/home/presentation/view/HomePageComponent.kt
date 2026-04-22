@@ -16,12 +16,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.videonatics.smartcapture.feature.home.data.model.FailureReasonResponse
+import com.videonatics.smartcapture.feature.home.data.model.StagePassRateResponse
 
 @Composable
 fun TopBar() {
@@ -92,14 +91,14 @@ fun FilterTabs() {
 }
 
 @Composable
-fun WarningCard() {
+fun WarningCard(message: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD))
     ) {
         Row(modifier = Modifier.padding(12.dp)) {
             Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFFF9800))
             Spacer(Modifier.width(8.dp))
-            Text("Your pass rate is 0% — below 50%. Review actions.", style = TextStyle(
+            Text(message, style = TextStyle(
                 color = Color.Black
             ))
         }
@@ -107,14 +106,14 @@ fun WarningCard() {
 }
 
 @Composable
-fun InfoCard() {
+fun InfoCard(message: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
     ) {
         Row(modifier = Modifier.padding(12.dp)) {
             Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF1976D2))
             Spacer(Modifier.width(8.dp))
-            Text("You have 2 override requests awaiting review.", style = TextStyle(
+            Text(message, style = TextStyle(
                 color = Color.Black
             )
             )
@@ -153,9 +152,7 @@ fun PassRateCard(passRate: Int) {
 }
 
 @Composable
-fun StagePassRate() {
-    val items = listOf("CL-PRE", "OP-PRE", "OP-POST", "CL-POST")
-
+fun StagePassRate(stageRates: List<StagePassRateResponse>) {
     Column {
         Text("STAGE PASS RATE", fontWeight = FontWeight.Bold)
 
@@ -163,7 +160,7 @@ fun StagePassRate() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start
         ) {
-            items.forEach {
+            stageRates.forEach {
                 Box(
                     modifier = Modifier.padding(5.dp)
 
@@ -174,8 +171,8 @@ fun StagePassRate() {
                             .padding(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("0%", color = Color.Red)
-                        Text(it, style = MaterialTheme.typography.bodySmall)
+                        Text("${it.rate}%", color = if (it.rate < 50) Color.Red else Color.Green)
+                        Text(it.stage, style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
@@ -185,21 +182,17 @@ fun StagePassRate() {
 }
 
 @Composable
-fun FailureReasons() {
+fun FailureReasons(reasons: List<FailureReasonResponse>) {
     Column {
         Text("COMMON FAILURE REASONS", fontWeight = FontWeight.Bold)
 
-        listOf(
-            "Screenshot detected" to 2,
-            "Asset needs cleaning" to 2,
-            "ID not readable" to 2
-        ).forEach {
+        reasons.forEach {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(it.first)
-                Text(it.second.toString())
+                Text(it.reason)
+                Text(it.count.toString())
             }
         }
     }

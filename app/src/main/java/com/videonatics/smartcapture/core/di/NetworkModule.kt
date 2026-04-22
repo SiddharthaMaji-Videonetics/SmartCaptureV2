@@ -1,11 +1,15 @@
 package com.videonatics.smartcapture.core.di
 
+import com.videonatics.smartcapture.core.Constants
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import dagger.Module
@@ -36,6 +40,10 @@ object NetworkModule {
                     isLenient = true
                     ignoreUnknownKeys = true
                 })
+            }
+            defaultRequest {
+                url(Constants.BASE_URL)
+                contentType(ContentType.Application.Json)
             }
         }
     }

@@ -10,6 +10,10 @@ class Pref(context: Context) {
         private const val THEME_MODE = "theme_mode"
         private const val MODEL_URL = "model_url"
         private const val IS_LOGGED_IN = "is_logged_in"
+        private const val ACCESS_TOKEN = "access_token"
+        private const val USER_NAME = "user_name"
+        private const val USER_EMAIL = "user_email"
+        private const val USER_TYPE = "user_type"
     }
 
     private val sharedPreferences = context.getSharedPreferences(
@@ -30,8 +34,19 @@ class Pref(context: Context) {
         get() = sharedPreferences.getBoolean(IS_LOGGED_IN, false)
         set(value) = sharedPreferences.edit { putBoolean(IS_LOGGED_IN, value) }
 
+    var accessToken: String?
+        get() = sharedPreferences.getString(ACCESS_TOKEN, null)
+        set(value) = sharedPreferences.edit { putString(ACCESS_TOKEN, value) }
 
+    var userName: String
+        get() = sharedPreferences.getString(USER_NAME, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(USER_NAME, value) }
 
+    var userEmail: String
+        get() = sharedPreferences.getString(USER_EMAIL, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(USER_EMAIL, value) }
 
-
+    var userType: String
+        get() = sharedPreferences.getString(USER_TYPE, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(USER_TYPE, value) }
 }

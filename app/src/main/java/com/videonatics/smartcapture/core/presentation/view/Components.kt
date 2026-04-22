@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun UserHeader() {
+fun UserHeader(userName: String, userType: String) {
     Row(
         verticalAlignment = CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -30,18 +30,18 @@ fun UserHeader() {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .padding(5.dp)
                 .background(Color(0xFF673AB7), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("A", color = Color.White)
+            val firstLetter = if (userName.isNotEmpty()) userName.first().uppercase() else "U"
+            Text(firstLetter, color = Color.White, fontWeight = FontWeight.Bold)
         }
 
         Spacer(Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text("aa", fontWeight = FontWeight.Bold)
-            Text("OPERATOR", style = MaterialTheme.typography.bodySmall)
+            Text(userName.ifEmpty { "User" }, fontWeight = FontWeight.Bold)
+            Text(userType.ifEmpty { "GUEST" }.uppercase(), style = MaterialTheme.typography.bodySmall)
         }
 
 

@@ -16,10 +16,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,6 +30,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
+import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
@@ -43,10 +47,15 @@ fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomePageComponent(onSettings: () -> Unit={},
-                      onCapture: () -> Unit={},
-                      onTaskOpen: () -> Unit ={}) {
+fun HomePageComponent(
+    onSettings: () -> Unit = {},
+    onCapture: () -> Unit = {},
+    onTaskOpen: () -> Unit = {},
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
+    val userName by viewModel.userName.collectAsState()
+    val userType by viewModel.userType.collectAsState()
 
     val items = listOf(
         HomeTab.Dashboard,
@@ -58,7 +67,7 @@ fun HomePageComponent(onSettings: () -> Unit={},
         topBar = {
             TopAppBar(
                 title = {
-                    UserHeader()
+                    UserHeader(userName = userName, userType = userType)
                 },
 
             )
@@ -95,7 +104,7 @@ fun HomePageComponent(onSettings: () -> Unit={},
 
         NavHost(
             navController = navController,
-            startDestination = HomeTab.MyTask.route,
+            startDestination = HomeTab.Dashboard.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(HomeTab.Dashboard.route) { DashboardScreen() }
