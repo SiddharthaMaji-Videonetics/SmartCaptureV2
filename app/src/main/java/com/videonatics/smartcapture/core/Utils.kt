@@ -17,6 +17,7 @@ import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
 import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
+import org.tensorflow.lite.Interpreter
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -504,4 +505,26 @@ fun ByteBuffer.toByteArray(): ByteArray {
     val arr = ByteArray(remaining())
     get(arr)
     return arr
+}
+
+fun loadFatBoxModel(context: Context): Interpreter {
+    val file = context.assets.openFd("model2.tflite")
+    val input = FileInputStream(file.fileDescriptor)
+    val channel = input.channel
+
+    val mapped = channel.map(
+        FileChannel.MapMode.READ_ONLY,
+        file.startOffset,
+        file.declaredLength
+    )
+
+    return Interpreter(mapped, Interpreter.Options().apply {
+        setNumThreads(4)
+    })
+}
+
+fun loadFatBoxLabels(context: Context): List<String> {
+    return context.assets.open("fatbox_classes.txt")
+        .bufferedReader()
+        .readLines()
 }
