@@ -11,7 +11,9 @@ import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.feature.language.domain.repository.LanguageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -85,6 +87,9 @@ class SharedCoreViewModel @Inject constructor(
     private val _unauthorizedEvent = MutableSharedFlow<Unit>()
     val unauthorizedEvent = _unauthorizedEvent.asSharedFlow()
 
+    private val _showSessionExpiredDialog = MutableStateFlow(false)
+    val showSessionExpiredDialog = _showSessionExpiredDialog.asStateFlow()
+
     fun selectLanguage(language: LanguageModel) {
         viewModelScope.launch {
             languageRepository.setSelectedLanguage(language)
@@ -94,6 +99,13 @@ class SharedCoreViewModel @Inject constructor(
     fun triggerUnauthorizedLogout() {
         viewModelScope.launch {
             authRepository.logout()
+            _showSessionExpiredDialog.value = true
+        }
+    }
+
+    fun dismissSessionExpiredDialog() {
+        _showSessionExpiredDialog.value = false
+        viewModelScope.launch {
             _unauthorizedEvent.emit(Unit)
         }
     }

@@ -1,6 +1,9 @@
 package com.videonatics.smartcapture.core.presentation.view
 
 import android.util.Log
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -48,15 +51,7 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
                 
-                LaunchedEffect(Unit) {
-                    sharedViewModel.unauthorizedEvent.collect {
-                        navController.navigate(PageRoute.AUTH.name) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                inclusive = true
-                            }
-                        }
-                    }
-                }
+                HandleUnauthorized(sharedViewModel, navController)
 
                 LocalizedPage(sharedViewModel) {
                     onThemeSwitch.invoke(sharedViewModel.themeMode)
@@ -84,6 +79,9 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
                 Log.e("task_id",taskId)
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     TaskPage(navController, taskId = taskId, sharedViewModel = sharedViewModel)
                 }
@@ -95,6 +93,9 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     HomePage(navController)
                 }
@@ -105,6 +106,9 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     CapturePage(navController, sharedViewModel)
                 }
@@ -115,6 +119,9 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     CaptureDetailsPage(
                         navController = navController,
@@ -128,6 +135,9 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     SettingsPage(navController)
                 }
@@ -138,11 +148,42 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
                 LocalizedPage(sharedViewModel) {
                     LanguagePage(navController, sharedViewModel)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun HandleUnauthorized(sharedViewModel: SharedCoreViewModel, navController: androidx.navigation.NavController) {
+    val showSessionExpiredDialog by sharedViewModel.showSessionExpiredDialog.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        sharedViewModel.unauthorizedEvent.collect {
+            navController.navigate(PageRoute.AUTH.name) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    inclusive = true
+                }
+            }
+        }
+    }
+
+    if (showSessionExpiredDialog) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Session Expired") },
+            text = { Text("Your session has expired. Please login again.") },
+            confirmButton = {
+                TextButton(onClick = { sharedViewModel.dismissSessionExpiredDialog() }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 
