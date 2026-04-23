@@ -32,16 +32,20 @@ class HomeViewModel @Inject constructor(
     private val _userType = MutableStateFlow(pref.userType)
     val userType = _userType.asStateFlow()
 
+    private val _selectedWindow = MutableStateFlow("7d")
+    val selectedWindow = _selectedWindow.asStateFlow()
+
     init {
         loadDashboardData()
         loadUserMe()
     }
 
-    fun loadDashboardData() {
+    fun loadDashboardData(window: String = _selectedWindow.value) {
         viewModelScope.launch {
+            _selectedWindow.value = window
             _isLoading.value = true
             _error.value = null
-            repository.getDashboardData()
+            repository.getDashboardData(window)
                 .onSuccess {
                     _dashboardData.value = it
                 }

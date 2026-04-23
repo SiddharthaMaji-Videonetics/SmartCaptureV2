@@ -48,11 +48,16 @@ private fun DashboardScreenWithViewModel(
 ) {
     val dashboardData by viewModel.dashboardData.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val selectedWindow by viewModel.selectedWindow.collectAsState()
+
 
     DashboardContent(
         data = dashboardData,
         isLoading = isLoading,
-        onWindowSelected = { viewModel.loadDashboardData() }
+        selectedWindow = selectedWindow,
+        onWindowSelected = {
+            viewModel.loadDashboardData(it)
+        }
     )
 }
 
@@ -60,6 +65,7 @@ private fun DashboardScreenWithViewModel(
 fun DashboardContent(
     data: DashboardModel?,
     isLoading: Boolean,
+    selectedWindow: String = "7d",
     onWindowSelected: (String) -> Unit = {}
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -70,7 +76,7 @@ fun DashboardContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item { FilterTabs(onWindowSelected = onWindowSelected) }
+                item { FilterTabs(selectedWindow = selectedWindow,onWindowSelected = onWindowSelected) }
 
                 items(data.insights) { insight ->
                     if (insight.severity == "warning") {

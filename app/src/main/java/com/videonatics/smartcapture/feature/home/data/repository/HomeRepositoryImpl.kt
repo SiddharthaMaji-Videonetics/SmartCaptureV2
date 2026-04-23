@@ -9,8 +9,8 @@ import com.videonatics.smartcapture.feature.home.domain.repository.HomeRepositor
 class HomeRepositoryImpl(
     private val remoteDataSource: HomeRemoteDataSource
 ) : HomeRepository {
-    override suspend fun getDashboardData(): Result<DashboardModel> {
-        return remoteDataSource.getDashboardData().map { it.toDomain() }
+    override suspend fun getDashboardData(window: String): Result<DashboardModel> {
+        return remoteDataSource.getDashboardData(window).map { it.toDomain() }
     }
 
     override suspend fun getUserMe(): Result<UserMeModel> {

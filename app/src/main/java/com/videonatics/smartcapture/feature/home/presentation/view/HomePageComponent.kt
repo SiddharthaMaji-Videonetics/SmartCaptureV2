@@ -48,7 +48,10 @@ fun TopBar() {
 }
 
 @Composable
-fun FilterTabs(onWindowSelected: (String) -> Unit = {}) {
+fun FilterTabs(
+    selectedWindow: String = "30d",
+    onWindowSelected: (String) -> Unit = {}
+) {
     val tabs = listOf(
         "24h" to "24h",
         "7d" to "7d",
@@ -56,11 +59,10 @@ fun FilterTabs(onWindowSelected: (String) -> Unit = {}) {
         "90d" to "90d",
         "All" to "all"
     )
-    var selected by remember { mutableStateOf("7d") }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         tabs.forEach { (label, value) ->
-            val isSelected = value == selected
+            val isSelected = value == selectedWindow
 
             Text(
                 text = label,
@@ -71,8 +73,9 @@ fun FilterTabs(onWindowSelected: (String) -> Unit = {}) {
                         else Color.LightGray.copy(alpha = 0.3f)
                     )
                     .clickable { 
-                        selected = value
-                        onWindowSelected(value)
+                        if (!isSelected) {
+                            onWindowSelected(value)
+                        }
                     }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 color = if (isSelected) Color.White else Color.Black
