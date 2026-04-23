@@ -134,8 +134,14 @@ fun ImageAnalysisPageComponent(
 
     LaunchedEffect(classificationResult) {
         classificationResult?.let { it ->
-            contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
-            isContentTypeValid = it.label != "FatBoxNot"
+            if(it.confidence>0.8){
+                contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
+                isContentTypeValid = it.label != "FatBoxNot"
+            }else{
+                contentType = "Not FatBox"
+                isContentTypeValid = false
+            }
+
         }
     }
 

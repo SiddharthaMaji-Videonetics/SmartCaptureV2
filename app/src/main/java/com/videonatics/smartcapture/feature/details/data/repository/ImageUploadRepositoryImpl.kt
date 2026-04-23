@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.details.data.repository
 
 import android.graphics.Bitmap
+import android.util.Log
 import com.videonatics.smartcapture.core.Constants
 import com.videonatics.smartcapture.core.data.safeApiCall
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
