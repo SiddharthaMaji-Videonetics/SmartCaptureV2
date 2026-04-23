@@ -1,5 +1,6 @@
 package com.videonatics.smartcapture.core.presentation.view
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -9,10 +10,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.core.util.LocaleHelper
 import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
@@ -59,15 +62,21 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
             }
 
-            composable(PageRoute.TASK.name) {
-                val parentEntry = remember(it) {
+            composable(
+                route = "${PageRoute.TASK.name}/{taskId}",
+                arguments = listOf(navArgument("taskId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+                val parentEntry = remember(backStackEntry) {
                     navController.getBackStackEntry("main_graph")
                 }
+                Log.e("task_id",taskId)
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
                 LocalizedPage(sharedViewModel) {
-                    TaskPage(navController)
+                    TaskPage(navController, taskId = taskId)
                 }
             }
+
 
             composable(PageRoute.HOME.name) {
                 val parentEntry = remember(it) {

@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.home.domain.model
 
 data class Task(
+    val id: String,
     val title: String,
     val name: String,
     val location: String,

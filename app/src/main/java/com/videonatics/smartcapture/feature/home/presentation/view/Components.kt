@@ -22,9 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.feature.home.domain.model.DashboardModel
 import com.videonatics.smartcapture.feature.home.domain.model.FailureReasonModel
 import com.videonatics.smartcapture.feature.home.domain.model.StagePassRateModel
@@ -91,10 +93,10 @@ fun DashboardContent(
                         item(span = { GridItemSpan(2) }) { InfoCard(it) }
                     }
 
-                    item { StatsCard(title = "Active Tasks", value = data.activeTasks.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.active_tasks), value = data.activeTasks.toString()) }
                     item { PassRateCard(passRate = data.passRate) }
-                    item { StatsCard(title = "Completed", value = data.completedTasks.toString()) }
-                    item { StatsCard(title = "Overrides Pending", value = data.overridesPending.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.completed), value = data.completedTasks.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.overrides_pending), value = data.overridesPending.toString()) }
 
                     item(span = { GridItemSpan(2) }) { StagePassRate(data.stagePassRates) }
                     item(span = { GridItemSpan(2) }) { FailureReasons(data.failureReasons) }
@@ -114,10 +116,10 @@ fun DashboardContent(
                         item { InfoCard(it) }
                     }
 
-                    item { StatsCard(title = "Active Tasks", value = data.activeTasks.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.active_tasks), value = data.activeTasks.toString()) }
                     item { PassRateCard(passRate = data.passRate) }
-                    item { StatsCard(title = "Completed", value = data.completedTasks.toString()) }
-                    item { StatsCard(title = "Overrides Pending", value = data.overridesPending.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.completed), value = data.completedTasks.toString()) }
+                    item { StatsCard(title = stringResource(id = R.string.overrides_pending), value = data.overridesPending.toString()) }
 
                     item { StagePassRate(data.stagePassRates) }
                     item { FailureReasons(data.failureReasons) }
@@ -125,7 +127,7 @@ fun DashboardContent(
             }
         } else {
             Text(
-                text = "No data available",
+                text = stringResource(id = R.string.no_data_available),
                 modifier = Modifier.align(Alignment.Center)
             )
         }
@@ -134,7 +136,7 @@ fun DashboardContent(
 
 @Composable
 fun MyTaskScreen(
-    onTaskOpen: () -> Unit = {}
+    onTaskOpen: (String) -> Unit = {}
 ) {
     // To resolve the "Expected an activity context" error in Previews,
     // we avoid calling hiltViewModel() when LocalInspectionMode.current is true.
@@ -152,7 +154,7 @@ fun MyTaskScreen(
 @Composable
 private fun MyTaskScreenWithViewModel(
     viewModel: TaskViewModel = hiltViewModel(),
-    onTaskOpen: () -> Unit = {}
+    onTaskOpen: (String) -> Unit = {}
 ) {
     val myTasks by viewModel.myTasks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -168,7 +170,7 @@ private fun MyTaskScreenWithViewModel(
 fun MyTaskContent(
     myTasks: List<MyTaskModel>,
     isLoading: Boolean,
-    onTaskOpen: () -> Unit = {}
+    onTaskOpen: (String) -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -189,16 +191,13 @@ fun MyTaskContent(
                 ) {
                     items(myTasks) { task ->
                         val mappedTask = Task(
-                            title = task.clientName,
-                            name = task.siteName,
-                            location = task.city,
-                            status = try {
-                                TaskStatus.valueOf(task.status)
-                            } catch (e: Exception) {
-                                TaskStatus.PENDING
-                            }
+                            id = task.id,
+                            title = task.assetId,
+                            name = task.title,
+                            location = task.location ?: "",
+                            status = mapStatus(task.status)
                         )
-                        TaskItem(mappedTask, onTaskOpen)
+                        TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
                     }
                 }
             } else {
@@ -208,22 +207,26 @@ fun MyTaskContent(
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     items(myTasks) { task ->
-                        // Mapping MyTaskModel to Home Task model for UI compatibility
                         val mappedTask = Task(
-                            title = task.clientName,
-                            name = task.siteName,
-                            location = task.city,
-                            status = try {
-                                TaskStatus.valueOf(task.status)
-                            } catch (e: Exception) {
-                                TaskStatus.PENDING
-                            }
+                            id = task.id,
+                            title = task.assetId,
+                            name = task.title,
+                            location = task.location ?: "",
+                            status = mapStatus(task.status)
                         )
-                        TaskItem(mappedTask, onTaskOpen)
+                        TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
                     }
                 }
             }
         }
+    }
+}
+
+private fun mapStatus(status: String): TaskStatus {
+    return when (status.uppercase()) {
+        "ASSIGNED", "IN_PROGRESS" -> TaskStatus.IN_PROGRESS
+        "COMPLETED", "REVIEWED" -> TaskStatus.COMPLETED
+        else -> TaskStatus.PENDING
     }
 }
 
@@ -249,30 +252,27 @@ private val fakeDashboardData = DashboardModel(
 
 private val fakeMyTasks = listOf(
     MyTaskModel(
-        id = 1,
-        siteName = "Kolkata Site A",
-        clientName = "Videonatics",
-        city = "Kolkata",
-        status = "IN_PROGRESS",
-        description = "Ongoing surveillance task",
+        id = "da696c52-89f0-4753-bd9c-a339936cb259",
+        title = "test",
+        description = null,
+        assetId = "123",
+        location = null,
+        status = "ASSIGNED",
+        createdAt = "2026-04-23T06:06:18.628Z",
+        updatedAt = "2026-04-23T06:06:18.628Z",
+        assignedToName = "Field Operator",
         stages = emptyList()
     ),
     MyTaskModel(
-        id = 2,
-        siteName = "Mumbai Hub",
-        clientName = "Reliance",
-        city = "Mumbai",
-        status = "PENDING",
-        description = "Awaiting deployment",
-        stages = emptyList()
-    ),
-    MyTaskModel(
-        id = 3,
-        siteName = "Delhi North",
-        clientName = "Airtel",
-        city = "New Delhi",
-        status = "COMPLETED",
-        description = "Task successfully finished",
+        id = "seed-fat-task-001",
+        title = "Seed FAT Box Hygiene Task",
+        description = "Bootstrap task for local POC development",
+        assetId = "FAT-BOX-001",
+        location = "Lab Rack A / Shelf 3",
+        status = "ASSIGNED",
+        createdAt = "2026-04-22T16:56:47.334Z",
+        updatedAt = "2026-04-23T03:57:59.821Z",
+        assignedToName = "Field Operator",
         stages = emptyList()
     )
 )
@@ -294,7 +294,8 @@ fun MyTaskPreview() {
     SmartCaptureTheme {
         MyTaskContent(
             myTasks = fakeMyTasks,
-            isLoading = false
+            isLoading = false,
+            onTaskOpen = {}
         )
     }
 }

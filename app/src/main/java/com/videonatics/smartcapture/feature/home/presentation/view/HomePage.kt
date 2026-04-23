@@ -56,8 +56,8 @@ fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
         onCapture = {
             navController.navigate("capture")
         },
-        onTaskOpen = {
-            navController.navigate("task")
+        onTaskOpen = { taskId ->
+            navController.navigate("${PageRoute.TASK.name}/$taskId")
         }
     )
 }
@@ -68,7 +68,7 @@ fun HomePageComponent(
     onNavigateToLanguage: () -> Unit = {},
     onSettings: () -> Unit = {},
     onCapture: () -> Unit = {},
-    onTaskOpen: () -> Unit = {},
+    onTaskOpen: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     rootNavController: NavController = rememberNavController()
 ) {
@@ -186,7 +186,7 @@ fun HomePageComponent(
 fun HomeNavHost(
     navController: androidx.navigation.NavHostController,
     modifier: Modifier = Modifier,
-    onTaskOpen: () -> Unit,
+    onTaskOpen: (String) -> Unit,
     onNavigateToLanguage: () -> Unit,
     rootNavController: NavController
 ) {

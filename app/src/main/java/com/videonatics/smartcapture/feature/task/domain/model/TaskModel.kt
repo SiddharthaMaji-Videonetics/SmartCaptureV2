@@ -1,7 +1,7 @@
 package com.videonatics.smartcapture.feature.task.domain.model
 
 data class TaskModel(
-    val id: Int,
+    val id: String,
     val title: String,
     val description: String?,
     val status: String,
@@ -11,11 +11,21 @@ data class TaskModel(
 )
 
 data class MyTaskModel(
-    val id: Int,
-    val siteName: String,
-    val clientName: String,
-    val city: String,
-    val status: String,
+    val id: String,
+    val title: String,
     val description: String?,
-    val stages: List<TaskModel>
+    val assetId: String,
+    val location: String?,
+    val status: String,
+    val createdAt: String,
+    val updatedAt: String,
+    val assignedToName: String,
+    val stages: List<TaskStageModel>
+)
+
+data class TaskStageModel(
+    val id: String,
+    val stageType: String,
+    val status: String,
+    val order: Int
 )

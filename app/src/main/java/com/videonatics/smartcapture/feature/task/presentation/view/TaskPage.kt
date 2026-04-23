@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,28 +41,34 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
-import com.videonatics.smartcapture.feature.task.domain.model.TaskModel
+import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
+import com.videonatics.smartcapture.feature.task.domain.model.TaskStageModel
 import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
 fun TaskPage(
     navController: NavController,
+    taskId: String,
     modifier: Modifier = Modifier,
     viewModel: TaskViewModel = hiltViewModel()
 ) {
-    val tasks by viewModel.tasks.collectAsState()
+    val taskDetails by viewModel.taskDetails.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
+    LaunchedEffect(taskId) {
+        viewModel.loadTaskDetails(taskId)
+    }
+
     TaskPageComponent(
         modifier = modifier,
-        tasks = tasks,
+        taskDetails = taskDetails,
         isLoading = isLoading,
         error = error,
         onBack = { navController.popBackStack() },
-        onStageClick = { task ->
-            if (!task.isLocked) {
+        onStageClick = { _, isLocked ->
+            if (!isLocked) {
                 navController.navigate(PageRoute.CAPTURE.name)
             }
         }
@@ -72,11 +79,11 @@ fun TaskPage(
 @Composable
 fun TaskPageComponent(
     modifier: Modifier = Modifier,
-    tasks: List<TaskModel> = emptyList(),
+    taskDetails: MyTaskModel? = null,
     isLoading: Boolean = false,
     error: String? = null,
     onBack: () -> Unit = {},
-    onStageClick: (TaskModel) -> Unit = {}
+    onStageClick: (TaskStageModel, Boolean) -> Unit = { _, _ -> }
 ) {
     Scaffold(
         topBar = {
@@ -115,10 +122,10 @@ fun TaskPageComponent(
                         .align(Alignment.Center)
                         .padding(16.dp)
                 )
-            } else {
+            } else if (taskDetails != null) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     item {
-                        TaskDetailSection()
+                        TaskDetailSection(taskDetails)
                     }
                     item {
                         Text(
@@ -131,10 +138,16 @@ fun TaskPageComponent(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    items(tasks) { task ->
+                    itemsIndexed(taskDetails.stages) { index, stage ->
+                        val isPreviousStageCompleted = if (index == 0) true else {
+                            taskDetails.stages[index - 1].status == "COMPLETED"
+                        }
+                        val isLocked = stage.status == "LOCKED" || !isPreviousStageCompleted
+
                         StageItem(
-                            task = task,
-                            onClick = { onStageClick(task) }
+                            stage = stage,
+                            isLocked = isLocked,
+                            onClick = { onStageClick(stage, isLocked) }
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
@@ -150,19 +163,23 @@ fun TaskPageComponent(
 
 
 @Composable
-fun TaskDetailSection() {
+fun TaskDetailSection(taskDetails: MyTaskModel) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Text("AA", color = Color.Gray, fontSize = 12.sp)
-        Text("aa", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF1A237E))
-        Text("Kolkata", color = Color.Gray, fontSize = 14.sp)
+        Text(taskDetails.assetId, color = Color.Gray, fontSize = 12.sp)
+        Text(taskDetails.title, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF1A237E))
+        taskDetails.location?.let {
+            Text(it, color = Color.Gray, fontSize = 14.sp)
+        }
         Spacer(modifier = Modifier.height(8.dp))
-        StatusChip(status = "IN PROGRESS")
+        StatusChip(status = taskDetails.status)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("aa", color = Color.Gray, fontSize = 14.sp)
+        taskDetails.description?.let {
+            Text(it, color = Color.Gray, fontSize = 14.sp)
+        }
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -185,7 +202,8 @@ fun StatusChip(status: String) {
 
 @Composable
 fun StageItem(
-    task: TaskModel,
+    stage: TaskStageModel,
+    isLocked: Boolean,
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -196,14 +214,14 @@ fun StageItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("STAGE ${task.id}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text("STAGE ${stage.order}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             Text(
-                text = task.title,
+                text = stage.stageType,
                 fontWeight = FontWeight.Bold,
-                color = if (task.isLocked) Color.Gray else Color(0xFF424242)
+                color = if (isLocked) Color.Gray else Color(0xFF424242)
             )
         }
-        if (task.isLocked) {
+        if (isLocked) {
             Icon(
                 Icons.Default.Lock,
                 contentDescription = "Locked",
@@ -211,7 +229,7 @@ fun StageItem(
                 modifier = Modifier.size(20.dp)
             )
         } else {
-            StatusChip(status = task.status)
+            StatusChip(status = stage.status)
         }
     }
 }
@@ -221,7 +239,7 @@ fun StageItem(
 fun TaskPagePreview() {
     SmartCaptureTheme {
         val navController = rememberNavController()
-        TaskPage(navController = navController)
+        TaskPage(navController = navController, taskId = "123")
     }
 }
 

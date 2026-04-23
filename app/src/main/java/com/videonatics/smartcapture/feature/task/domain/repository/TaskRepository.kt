@@ -6,9 +6,11 @@ import com.videonatics.smartcapture.feature.task.domain.model.TaskModel
 interface TaskRepository {
     suspend fun getTasks(
         statusFilter: String? = null,
-        skip: Int = 0,
-        limit: Int = 10
+        page: Int = 1,
+        limit: Int = 20
     ): Result<List<TaskModel>>
 
     suspend fun getMyTasks(): Result<List<MyTaskModel>>
+
+    suspend fun getTaskDetails(taskId: String): Result<MyTaskModel>
 }

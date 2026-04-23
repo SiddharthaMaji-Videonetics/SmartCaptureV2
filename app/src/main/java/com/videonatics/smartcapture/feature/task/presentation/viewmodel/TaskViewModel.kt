@@ -22,6 +22,9 @@ class TaskViewModel @Inject constructor(
     private val _myTasks = MutableStateFlow<List<MyTaskModel>>(emptyList())
     val myTasks = _myTasks.asStateFlow()
 
+    private val _taskDetails = MutableStateFlow<MyTaskModel?>(null)
+    val taskDetails = _taskDetails.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
@@ -29,7 +32,6 @@ class TaskViewModel @Inject constructor(
     val error = _error.asStateFlow()
 
     init {
-        loadTasks()
         loadMyTasks()
     }
 
@@ -55,6 +57,21 @@ class TaskViewModel @Inject constructor(
             repository.getMyTasks()
                 .onSuccess {
                     _myTasks.value = it
+                }
+                .onFailure {
+                    _error.value = it.message ?: "An unknown error occurred"
+                }
+            _isLoading.value = false
+        }
+    }
+
+    fun loadTaskDetails(taskId: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            repository.getTaskDetails(taskId)
+                .onSuccess {
+                    _taskDetails.value = it
                 }
                 .onFailure {
                     _error.value = it.message ?: "An unknown error occurred"

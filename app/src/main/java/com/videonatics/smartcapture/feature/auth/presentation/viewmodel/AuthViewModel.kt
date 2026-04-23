@@ -41,9 +41,8 @@ class AuthViewModel @Inject constructor(
 
             val result = repository.login(email, password)
             
-            result.onSuccess { success ->
-                if (success) {
-                    repository.setLoggedIn(true)
+            result.onSuccess { response ->
+                if (response.success) {
                     _loginSuccess.emit(true)
                 } else {
                     error = "Login failed"
