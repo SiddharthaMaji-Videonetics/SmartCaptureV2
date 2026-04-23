@@ -159,13 +159,7 @@ fun CapturePage(
                     focusedObj?.apply {
                         sharedViewModel.saveCapturedImageBoundBox(this)
                     }
-                    // Save metadata
-                    sharedViewModel.saveMetadata(
-                        quality = 0.92f,
-                        rotation = rotation,
-                        lat = 22.5726,
-                        lon = 88.3639
-                    )
+
                     navController.navigate("image_details")
                 },
                 updateCanvasSize = { w, h ->

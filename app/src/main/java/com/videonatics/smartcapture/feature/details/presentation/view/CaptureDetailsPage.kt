@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,25 +10,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.core.loadFatBoxLabels
@@ -49,264 +59,278 @@ import com.videonatics.smartcapture.core.loadFatBoxModel
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
+import com.videonatics.smartcapture.feature.details.data.model.ImageQualityResult
 import com.videonatics.smartcapture.feature.details.presentation.viewmodel.CaptureDetailsViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun CaptureDetailsPage(modifier: Modifier = Modifier,
-                       navController: NavController,
-                       sharedViewModel: SharedCoreViewModel) {
-
+fun CaptureDetailsPage(
+    modifier: Modifier = Modifier,
+    navController: NavController,
+    sharedViewModel: SharedCoreViewModel,
+    viewModel: CaptureDetailsViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
-    val viewModel: CaptureDetailsViewModel = hiltViewModel()
-    
     val bmp = sharedViewModel.getCapturedImage()
-    val classifier = remember {
-        FatBoxClassifier(
-            interpreter = loadFatBoxModel(context),
-            labels = loadFatBoxLabels(context)
-        )
-    }
-
-    var classificationResult by remember { mutableStateOf<FatBoxClassifier.Result?>(null) }
-    var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var overrideReason by remember { mutableStateOf("") }
-    var showOverrideInput by remember { mutableStateOf(false) }
-
+    val stageId = sharedViewModel.getCurrentStageId() ?: ""
     val uploadState by viewModel.uploadState.collectAsState()
+    val qualityState by viewModel.qualityState.collectAsState()
+    val classificationState by viewModel.classificationState.collectAsState()
+
+    val sourceWidth = sharedViewModel.getSourceImageWidth()
+    val sourceHeight = sharedViewModel.getSourceImageHeight()
+
+    LaunchedEffect(uploadState) {
+        when (uploadState) {
+            is CaptureDetailsViewModel.UploadState.Success -> {
+                Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
+                navController.popBackStack()
+            }
+            is CaptureDetailsViewModel.UploadState.Error -> {
+                Toast.makeText(context, (uploadState as CaptureDetailsViewModel.UploadState.Error).message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
+    }
 
     ImageAnalysisPageComponent(
         capturedImage = bmp,
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
-        classificationResult = classificationResult,
-        croppedImage = croppedBitmap,
-        imageQuality = sharedViewModel.getImageQuality(),
-        rotationAngle = sharedViewModel.getRotationAngle(),
-        latitude = sharedViewModel.getLatitude(),
-        longitude = sharedViewModel.getLongitude(),
-        overrideReason = overrideReason,
-        showOverrideInput = showOverrideInput,
-        uploadState = uploadState,
-        onOverrideReasonChange = { overrideReason = it },
-        onToggleOverrideInput = { showOverrideInput = it },
-        onResizedImageReady = { resized ->
-            val result = classifier.classify(resized)
-            classificationResult = result
-            croppedBitmap = result.croppedBitmap
+        imageWidth = sourceWidth,
+        imageHeight = sourceHeight,
+        isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
+        qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
+        classificationResult = (classificationState as? CaptureDetailsViewModel.ClassificationState.Success)?.result,
+        onAnalyze = { bitmap ->
+            viewModel.analyzeQuality(bitmap)
+            viewModel.classifyImage(bitmap)
+        },
+        onUploadClick = {
+            bmp?.let { viewModel.uploadImage(stageId, it) }
         },
         onClose = {
             navController.popBackStack()
-        },
-        onSubmit = {
-            bmp?.let {
-                val stageId = sharedViewModel.getCurrentStageId() ?: "default_stage"
-                viewModel.uploadImage(stageId, it)
-            }
         }
     )
-
-    // Handle upload success - Return to TaskPage
-    if (uploadState is CaptureDetailsViewModel.UploadState.Success) {
-        navController.navigate(PageRoute.HOME.name) {
-            popUpTo(PageRoute.HOME.name) { inclusive = false }
-        }
-    }
 }
-
 
 @Composable
-fun ImageAnalysisPageComponent(modifier: Modifier = Modifier,
-                               capturedImage: Bitmap? = null,
-                               capturedImageBoundingBox: RectF? = null,
-                               classificationResult: FatBoxClassifier.Result? = null,
-                               croppedImage: Bitmap? = null,
-                               imageQuality: Float = 0f,
-                               rotationAngle: Float = 0f,
-                               latitude: Double = 0.0,
-                               longitude: Double = 0.0,
-                               overrideReason: String = "",
-                               showOverrideInput: Boolean = false,
-                               uploadState: CaptureDetailsViewModel.UploadState = CaptureDetailsViewModel.UploadState.Idle,
-                               onOverrideReasonChange: (String) -> Unit = {},
-                               onToggleOverrideInput: (Boolean) -> Unit = {},
-                               onResizedImageReady: (Bitmap) -> Unit = {},
-                               onClose: () -> Unit = {},
-                               onSubmit: () -> Unit = {}) {
-    Scaffold(
-        bottomBar = {
-            val isQualityLow = imageQuality < 0.7f
-            val isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading
-            
-            Column(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
-                if (isQualityLow && !showOverrideInput) {
-                    Button(
-                        onClick = { onToggleOverrideInput(true) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
-                        enabled = !isUploading
-                    ) {
-                        Text("Low Quality - Override?")
-                    }
-                } else if (showOverrideInput) {
-                    OutlinedTextField(
-                        value = overrideReason,
-                        onValueChange = onOverrideReasonChange,
-                        label = { Text("Reason for override") },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        enabled = !isUploading
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { onToggleOverrideInput(false) },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(),
-                            enabled = !isUploading
-                        ) {
-                            Text("Cancel")
-                        }
-                        Button(
-                            onClick = onSubmit,
-                            enabled = overrideReason.isNotBlank() && !isUploading,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isUploading) {
-                                CircularProgressIndicator(modifier = Modifier.height(20.dp), color = Color.White)
-                            } else {
-                                Text("Submit Override")
-                            }
-                        }
-                    }
-                } else {
-                    Button(
-                        onClick = onSubmit,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isUploading
-                    ) {
-                        if (isUploading) {
-                            CircularProgressIndicator(modifier = Modifier.height(20.dp).padding(4.dp), color = Color.White)
-                        } else {
-                            Text("Submit")
-                        }
-                    }
-                }
-                
-                if (uploadState is CaptureDetailsViewModel.UploadState.Error) {
-                    Text(
-                        text = "Error: ${uploadState.message}",
-                        color = Color.Red,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
+fun ImageAnalysisPageComponent(
+    modifier: Modifier = Modifier,
+    capturedImage: Bitmap? = null,
+    capturedImageBoundingBox: RectF? = null,
+    imageWidth: Float = 480f,
+    imageHeight: Float = 640f,
+    isUploading: Boolean = false,
+    qualityResult: ImageQualityResult? = null,
+    classificationResult: FatBoxClassifier.Result? = null,
+    onAnalyze: (Bitmap) -> Unit = {},
+    onUploadClick: () -> Unit = {},
+    onClose: () -> Unit = {}
+) {
+    var contentType by remember { mutableStateOf("Analyzing...") }
+    var quality by remember { mutableStateOf("Analyzing...") }
+    var isContentTypeValid by remember { mutableStateOf(true) }
+    var isQualityValid by remember { mutableStateOf(true) }
+
+    var contentTypeOverrideReason by remember { mutableStateOf("") }
+    var qualityOverrideReason by remember { mutableStateOf("") }
+
+    LaunchedEffect(qualityResult) {
+        qualityResult?.let { r ->
+            quality = when {
+                r.isBlurry && r.isUnderlit -> "Blurry & Underlit"
+                r.isBlurry -> "Blurry"
+                r.isUnderlit -> "Underlit"
+                r.hasIssue -> r.issues.joinToString(" & ") { it.lowercase().replaceFirstChar(Char::uppercase) }
+                else -> "Good"
+            }
+            isQualityValid = !r.hasIssue && !r.isBlurry && !r.isUnderlit
+        }
+    }
+
+    LaunchedEffect(classificationResult) {
+        classificationResult?.let { it ->
+            if(it.confidence > 0.8) {
+                contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
+                isContentTypeValid = it.label != "FatBoxNot"
+            } else {
+                contentType = "Not FatBox"
+                isContentTypeValid = false
             }
         }
-    ) {
-        Box(modifier = modifier.padding(it).fillMaxSize()){
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
+    }
+
+    val isUploadEnabled = (isContentTypeValid || contentTypeOverrideReason.isNotBlank()) &&
+            (isQualityValid || qualityOverrideReason.isNotBlank()) &&
+            contentType != "Analyzing..." && !isUploading
+
+    Scaffold(
+        bottomBar = {
+            BottomAppBar() {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .background(color = Color(0xFF262626))
-                    .weight(1f)){
-
-                    if(capturedImage!=null && capturedImageBoundingBox!=null) {
-                        ZoomableImageWithBoundingBox(
-                            bitmap = capturedImage,
-                            rect = capturedImageBoundingBox,
-                            imageWidth = capturedImage.width.toFloat(),
-                            imageHeight = capturedImage.height.toFloat(),
-                            modifier = Modifier.fillMaxSize(),
-                            onTransformedImage = onResizedImageReady
-                        )
+                    Button(
+                        onClick = onUploadClick,
+                        enabled = isUploadEnabled,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isUploading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Upload")
                     }
+                }
+            }
 
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color(0xFF606060),
-                        modifier = Modifier.padding(5.dp)
-                            .align(Alignment.TopEnd).clickable {
-                                onClose.invoke()
-                            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Image Preview Area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color.Black)
+            ) {
+                if (capturedImage != null && capturedImageBoundingBox != null) {
+                    ZoomableImageWithBoundingBox(
+                        bitmap = capturedImage,
+                        rect = capturedImageBoundingBox,
+                        boundedImage = false,
+                        imageWidth = imageWidth,
+                        imageHeight = imageHeight,
+                        modifier = Modifier.fillMaxSize(),
+                        onTransformedImage = { transformedBmp ->
+                            onAnalyze(transformedBmp)
+                        }
                     )
                 }
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)){
-                    LazyColumn() {
-                        item {
-                            val isQualityLow = imageQuality < 0.7f
-                            ListItem(
-                                headlineContent = { Text("Image Quality", fontWeight = FontWeight.Bold) },
-                                supportingContent = { 
-                                    Text(if (isQualityLow) "Low Quality Detected" else "Good Quality") 
-                                },
-                                trailingContent = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("${(imageQuality * 100).toInt()}%", 
-                                            color = if (isQualityLow) Color.Red else Color(0xFF4CAF50),
-                                            fontWeight = FontWeight.Bold)
-                                        Icon(
-                                            if (isQualityLow) Icons.Default.Warning else Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = if (isQualityLow) Color.Red else Color(0xFF4CAF50),
-                                            modifier = Modifier.padding(start = 4.dp).height(20.dp)
-                                        )
-                                    }
-                                }
-                            )
-                            HorizontalDivider()
-                        }
-                        item {
-                            ListItem(
-                                headlineContent = { Text("Content Type") },
-                                supportingContent = { Text(classificationResult?.label ?: "Unknown") },
-                                trailingContent = {
-                                    classificationResult?.let {
-                                        Text("${(it.confidence * 100).toInt()}%")
-                                    }
-                                }
-                            )
-                        }
-                        item {
-                            HorizontalDivider()
-                            ListItem(
-                                headlineContent = { Text("Metadata") },
-                                supportingContent = {
-                                    Column {
-                                        Text("Rotation: ${"%.2f".format(rotationAngle)}°")
-                                        Text("Location: ${"%.4f".format(latitude)}, ${"%.4f".format(longitude)}")
-                                    }
-                                }
-                            )
-                        }
-                        if (croppedImage != null) {
-                            item {
-                                HorizontalDivider()
-                                Text(
-                                    "Processed Input (1024x1024)",
-                                    modifier = Modifier.padding(16.dp),
-                                    color = Color.Gray
-                                )
-                                Image(
-                                    bitmap = croppedImage.asImageBitmap(),
-                                    contentDescription = "Cropped Input",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                        .padding(horizontal = 16.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
-                        }
-                    }
+
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.TopEnd)
+                        .clickable { onClose() }
+                )
+            }
+
+            // Analysis Results Area
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1.2f)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Text(
+                        text = "Image Analysis",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                item {
+                    AnalysisField(
+                        label = "Content Type",
+                        value = contentType,
+                        isValid = isContentTypeValid,
+                        overrideReason = contentTypeOverrideReason,
+                        onOverrideReasonChange = { contentTypeOverrideReason = it }
+                    )
+                }
+
+                item { HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f)) }
+
+                item {
+                    AnalysisField(
+                        label = "Image Quality",
+                        value = quality,
+                        isValid = isQualityValid,
+                        overrideReason = qualityOverrideReason,
+                        onOverrideReasonChange = { qualityOverrideReason = it }
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+fun AnalysisField(
+    label: String,
+    value: String,
+    isValid: Boolean,
+    overrideReason: String,
+    onOverrideReasonChange: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isValid) Color.Unspecified else MaterialTheme.colorScheme.error
+                )
+            }
+
+            if (value != "Analyzing...") {
+                Icon(
+                    imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
+                    contentDescription = if (isValid) "Pass" else "Fail",
+                    tint = if (isValid) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        if (!isValid && value != "Analyzing...") {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = overrideReason,
+                onValueChange = onOverrideReasonChange,
+                label = { Text("Override Reason", fontSize = 12.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = overrideReason.isBlank()
+            )
+            if (overrideReason.isBlank()) {
+                Text(
+                    text = "Reason is required to override",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                )
+            }
+        }
+    }
+}
 
 @Preview(showBackground = true)
 @Composable
