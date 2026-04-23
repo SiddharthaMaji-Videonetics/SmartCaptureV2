@@ -158,8 +158,8 @@ fun FocusBoxOverlay(
                                 // -------------------------
                                 if (dragMode == DragMode.MOVE) {
 
-                                    val snapThreshold = 30.dp.toPx()
-                                    val releaseThreshold = 80.dp.toPx()
+                                    val snapThreshold = 5.dp.toPx()
+                                    val releaseThreshold = 10.dp.toPx()
 
                                     val cx = size.width / 2f
                                     val cy = size.height / 2f

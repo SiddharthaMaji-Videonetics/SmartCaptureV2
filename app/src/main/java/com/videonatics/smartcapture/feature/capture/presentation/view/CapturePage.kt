@@ -211,10 +211,12 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          onFocusRectRect:(RectF)-> Unit = {},
                          onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                          onDetectionChanges: (List<Detection>) -> Unit = {}) {
+    var isBoundBoxEdit by remember { mutableStateOf(false) }
+
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
-            AnimatedVisibility(visible = isCapturable) {
+            AnimatedVisibility(visible = isCapturable && !isBoundBoxEdit) {
                 FloatingActionButton(onClick = {
                     onCaptureImage.invoke()
                 }) {
@@ -233,9 +235,15 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 inst,
                 updateCanvasSize,
                 onFocusRectRect,
+                isBoundBoxEdit = isBoundBoxEdit,
                 onFullImageCapture = onFullImageCapture,
                 onImageDimensionsCaptured = onImageDimensionsCaptured,
                 onDetectionChanges = onDetectionChanges)
+
+            ToolbarComponent(
+                isBoundBoxEdit = isBoundBoxEdit,
+                onBoundBoxEdit = { isBoundBoxEdit = it }
+            )
         }
 
     }
@@ -248,6 +256,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
+                        isBoundBoxEdit: Boolean = false,
                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                         onDetectionChanges: (List<Detection>)-> Unit) {
@@ -362,7 +371,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                     modifier = Modifier.fillMaxSize(),
                     imageWidth = imageWidth,
                     imageHeight = imageHeight,
-                    isEditable = false,
+                    isEditable = isBoundBoxEdit,
                     onImageRectChanged = {
                         onFocusRectRect.invoke(it)
                     },
@@ -371,5 +380,17 @@ fun CameraDetectionView(interpreter: Interpreter?,
                     }
                 )}
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun CapturePageComponentPreview() {
+    SmartCaptureTheme {
+        CapturePageComponent(
+            focusedObj = RectF(100f, 100f, 400f, 400f),
+            inst = AlignmentVector(0f, 0f, 0f),
+            isCapturable = true
+        )
     }
 }
