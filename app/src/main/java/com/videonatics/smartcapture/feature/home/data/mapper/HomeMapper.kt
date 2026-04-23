@@ -53,7 +53,7 @@ fun DashboardInsightResponse.toDomain() = DashboardInsightModel(
 )
 
 fun UserMeResponse.toDomain() = UserMeModel(
-    username = username,
+    username = name,
     email = email,
-    userType = user_type
+    userType = role
 )

@@ -6,6 +6,7 @@ import com.videonatics.smartcapture.core.data.safeGet
 import com.videonatics.smartcapture.feature.home.data.model.DashboardWrapperResponse
 import com.videonatics.smartcapture.feature.home.data.model.DashboardResponse
 import com.videonatics.smartcapture.feature.home.data.model.UserMeResponse
+import com.videonatics.smartcapture.feature.home.data.model.UserMeWrapperResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.header
@@ -38,6 +39,9 @@ class HomeRemoteDataSourceImpl(
         block = {
             header("Authorization", "Bearer ${pref.accessToken}")
         },
-        map = { it.body() }
+        map = { response ->
+            val wrapper: UserMeWrapperResponse = response.body()
+            wrapper.data
+        }
     )
 }

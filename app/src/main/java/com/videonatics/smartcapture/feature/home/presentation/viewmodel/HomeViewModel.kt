@@ -3,6 +3,8 @@ package com.videonatics.smartcapture.feature.home.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.videonatics.smartcapture.core.Pref
+import com.videonatics.smartcapture.core.data.UnauthorizedException
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.home.domain.model.DashboardModel
 import com.videonatics.smartcapture.feature.home.domain.repository.HomeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,7 +42,7 @@ class HomeViewModel @Inject constructor(
         loadUserMe()
     }
 
-    fun loadDashboardData(window: String = _selectedWindow.value) {
+    fun loadDashboardData(window: String = _selectedWindow.value, sharedViewModel: SharedCoreViewModel? = null) {
         viewModelScope.launch {
             _selectedWindow.value = window
             _isLoading.value = true
@@ -50,13 +52,16 @@ class HomeViewModel @Inject constructor(
                     _dashboardData.value = it
                 }
                 .onFailure {
+                    if (it is UnauthorizedException) {
+                        sharedViewModel?.triggerUnauthorizedLogout()
+                    }
                     _error.value = it.message ?: "An unknown error occurred"
                 }
             _isLoading.value = false
         }
     }
 
-    fun loadUserMe() {
+    fun loadUserMe(sharedViewModel: SharedCoreViewModel? = null) {
         viewModelScope.launch {
             repository.getUserMe()
                 .onSuccess {
@@ -66,6 +71,11 @@ class HomeViewModel @Inject constructor(
                     
                     _userName.value = it.username
                     _userType.value = it.userType
+                }
+                .onFailure {
+                    if (it is UnauthorizedException) {
+                        sharedViewModel?.triggerUnauthorizedLogout()
+                    }
                 }
         }
     }

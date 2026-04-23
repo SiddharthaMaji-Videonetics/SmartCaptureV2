@@ -7,7 +7,10 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+
+class UnauthorizedException : Exception("Unauthorized access")
 
 suspend fun <T> safeApiCall(
     call: suspend () -> HttpResponse,
@@ -17,6 +20,8 @@ suspend fun <T> safeApiCall(
         val response = call()
         if (response.status.isSuccess()) {
             Result.success(map(response))
+        } else if (response.status == HttpStatusCode.Unauthorized) {
+            Result.failure(UnauthorizedException())
         } else {
             Result.failure(Exception("API call failed with status: ${response.status}"))
         }

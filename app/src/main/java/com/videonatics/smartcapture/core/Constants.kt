@@ -9,6 +9,6 @@ object Constants {
         const val TASK_DETAILS = "tasks/"
         const val MY_TASKS = "tasks"
         const val DASHBOARD = "dashboard"
-        const val ME = "me"
+        const val ME = "auth/me"
     }
 }

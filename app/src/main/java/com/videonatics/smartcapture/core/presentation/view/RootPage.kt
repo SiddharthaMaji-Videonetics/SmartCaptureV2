@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.core.presentation.view
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -10,6 +11,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -46,6 +48,16 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
                 
+                LaunchedEffect(Unit) {
+                    sharedViewModel.unauthorizedEvent.collect {
+                        navController.navigate(PageRoute.AUTH.name) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                }
+
                 LocalizedPage(sharedViewModel) {
                     onThemeSwitch.invoke(sharedViewModel.themeMode)
                     SplashPage(navController)

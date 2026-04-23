@@ -24,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.videonatics.smartcapture.R
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.home.domain.model.*
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
 import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
@@ -31,33 +32,31 @@ import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskView
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(sharedViewModel: SharedCoreViewModel) {
     if (LocalInspectionMode.current) {
         DashboardContent(
             data = fakeDashboardData,
             isLoading = false
         )
     } else {
-        DashboardScreenWithViewModel()
+        DashboardScreenWithViewModel(sharedViewModel = sharedViewModel)
     }
 }
 
 @Composable
 private fun DashboardScreenWithViewModel(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    sharedViewModel: SharedCoreViewModel
 ) {
     val dashboardData by viewModel.dashboardData.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedWindow by viewModel.selectedWindow.collectAsState()
 
-
     DashboardContent(
         data = dashboardData,
         isLoading = isLoading,
         selectedWindow = selectedWindow,
-        onWindowSelected = {
-            viewModel.loadDashboardData(it)
-        }
+        onWindowSelected = { viewModel.loadDashboardData(it, sharedViewModel) }
     )
 }
 
@@ -76,7 +75,12 @@ fun DashboardContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item { FilterTabs(selectedWindow = selectedWindow,onWindowSelected = onWindowSelected) }
+                item { 
+                    FilterTabs(
+                        selectedWindow = selectedWindow,
+                        onWindowSelected = onWindowSelected
+                    ) 
+                }
 
                 items(data.insights) { insight ->
                     if (insight.severity == "warning") {

@@ -22,8 +22,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -38,6 +40,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
 import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
@@ -88,6 +91,16 @@ fun HomePageComponent(
         HomeTab.Settings
     )
 
+    val parentEntry = remember(rootNavController.currentBackStackEntry) {
+        rootNavController.getBackStackEntry("main_graph")
+    }
+    val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+
+    LaunchedEffect(Unit) {
+        viewModel.loadDashboardData(sharedViewModel = sharedViewModel)
+        viewModel.loadUserMe(sharedViewModel = sharedViewModel)
+    }
+
     if (isLandscape) {
         Row(modifier = Modifier.fillMaxSize()) {
             NavigationRail(
@@ -131,7 +144,8 @@ fun HomePageComponent(
                     modifier = Modifier.padding(innerPadding),
                     onTaskOpen = onTaskOpen,
                     onNavigateToLanguage = onNavigateToLanguage,
-                    rootNavController = rootNavController
+                    rootNavController = rootNavController,
+                    sharedViewModel = sharedViewModel
                 )
             }
         }
@@ -176,7 +190,8 @@ fun HomePageComponent(
                 modifier = Modifier.padding(innerPadding),
                 onTaskOpen = onTaskOpen,
                 onNavigateToLanguage = onNavigateToLanguage,
-                rootNavController = rootNavController
+                rootNavController = rootNavController,
+                sharedViewModel = sharedViewModel
             )
         }
     }
@@ -188,14 +203,15 @@ fun HomeNavHost(
     modifier: Modifier = Modifier,
     onTaskOpen: (String) -> Unit,
     onNavigateToLanguage: () -> Unit,
-    rootNavController: NavController
+    rootNavController: NavController,
+    sharedViewModel: SharedCoreViewModel
 ) {
     NavHost(
         navController = navController,
         startDestination = HomeTab.Dashboard.route,
         modifier = modifier
     ) {
-        composable(HomeTab.Dashboard.route) { DashboardScreen() }
+        composable(HomeTab.Dashboard.route) { DashboardScreen(sharedViewModel = sharedViewModel) }
         composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
         composable(HomeTab.Settings.route) { 
             SettingsPage(navController = rootNavController)
