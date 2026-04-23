@@ -19,7 +19,8 @@ class FatBoxClassifier(
     }
 
     fun classify(bitmap: Bitmap): Result {
-        val processed = preprocess(bitmap)
+        val cropped = resizeAndCrop(bitmap)
+        val processed = preprocess(cropped)
 
         val output = Array(1) { FloatArray(labels.size) }
 
@@ -32,14 +33,12 @@ class FatBoxClassifier(
         return Result(
             label = labels.getOrElse(maxIdx) { "Unknown" },
             confidence = probs.getOrElse(maxIdx) { 0f },
-            probabilities = probs
+            probabilities = probs,
+            croppedBitmap = cropped
         )
     }
 
-    private fun preprocess(bitmap: Bitmap): ByteBuffer {
-
-        val cropped = resizeAndCrop(bitmap)
-
+    private fun preprocess(cropped: Bitmap): ByteBuffer {
         val buffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * 3)
         buffer.order(ByteOrder.nativeOrder())
 
@@ -53,7 +52,7 @@ class FatBoxClassifier(
 
             // Normalize EXACTLY like Python
             buffer.putFloat((r / 255f - MEAN[0]) / STD[0])
-            buffer.putFloat((g / 255f - MEAN[2]) / STD[2])
+            buffer.putFloat((g / 255f - MEAN[1]) / STD[1])
             buffer.putFloat((b / 255f - MEAN[2]) / STD[2])
         }
 
@@ -99,6 +98,7 @@ class FatBoxClassifier(
     data class Result(
         val label: String,
         val confidence: Float,
-        val probabilities: FloatArray
+        val probabilities: FloatArray,
+        val croppedBitmap: Bitmap
     )
 }

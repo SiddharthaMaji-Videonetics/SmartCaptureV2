@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -55,7 +56,7 @@ fun CameraPreviewWithImageProxy(
     captureTrigger: Boolean = false,
     frameIntervalMs: Long = 150L,
     onFrame: (ImageProxy) -> Unit,
-    onFullImageCapture:(Bitmap) -> Unit,
+    onFullImageCapture:(Float, Bitmap) -> Unit,
     onResolution: (width: Int, height: Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
@@ -83,9 +84,9 @@ fun CameraPreviewWithImageProxy(
                 object : ImageCapture.OnImageCapturedCallback() {
 
                     override fun onCaptureSuccess(image: ImageProxy) {
+                        val rotation = image.imageInfo.rotationDegrees.toFloat()
                         val bitmap = imageProxyToBitmap(image)
-                        onFullImageCapture(bitmap)
-
+                        onFullImageCapture(rotation, bitmap)
                     }
 
                     override fun onError(exception: ImageCaptureException) {
@@ -183,8 +184,6 @@ fun BoundingBoxOverlay(
     strokeWidth: Float = 2f,
     onCanvasSizeChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
-    var detectionObjColor: Color
-    var stroke: Float
     Canvas(modifier = modifier) {
 
         val viewW = size.width
@@ -203,13 +202,9 @@ fun BoundingBoxOverlay(
 
         boxes.forEach { b ->
             val rect = b.rect
-           if(b.rect == focusedObj){
-               detectionObjColor = Color.Yellow
-               stroke = 2 * strokeWidth
-            }else{
-               stroke = strokeWidth
-               detectionObjColor = boxColor
-            }
+            val detectionObjColor = if(b.rect == focusedObj) Color.Yellow else boxColor
+            val stroke = if(b.rect == focusedObj) 2 * strokeWidth else strokeWidth
+            
             val isNormalized = rect.right <= 1f
 
             val leftSrc = if (isNormalized) rect.left * imageWidth else rect.left
@@ -221,13 +216,23 @@ fun BoundingBoxOverlay(
             val top = topSrc * scale + dy
             val right = rightSrc * scale + dx
             val bottom = bottomSrc * scale + dy
+            
+            val width = right - left
+            val height = bottom - top
+            val centerX = left + width / 2f
+            val centerY = top + height / 2f
 
-            drawRect(
-                color = detectionObjColor,
-                topLeft = Offset(left, top),
-                size = Size(right - left, bottom - top),
-                style = Stroke(width = stroke)
-            )
+            withTransform({
+                // Convert angle from radians (typically YOLO OBB) to degrees for Compose
+                rotate(degrees = Math.toDegrees(b.angle.toDouble()).toFloat(), pivot = Offset(centerX, centerY))
+            }) {
+                drawRect(
+                    color = detectionObjColor,
+                    topLeft = Offset(left, top),
+                    size = Size(width, height),
+                    style = Stroke(width = stroke)
+                )
+            }
         }
     }
 }
@@ -279,4 +284,3 @@ fun ToolbarComponent(isBoundBoxEdit: Boolean,
 
     }
 }
-

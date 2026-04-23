@@ -68,7 +68,7 @@ fun preprocess(
     val dx = ((size - newW) / 2f)
     val dy = ((size - newH) / 2f)
 
-    val buffer = ByteBuffer.allocateDirect(1 * 3 * size * size * 4)
+    val buffer = ByteBuffer.allocateDirect(1 * size * size * 3 * 4)
     buffer.order(ByteOrder.nativeOrder())
 
     val total = size * size
@@ -136,9 +136,12 @@ fun preprocess(
         }
     }
 
-    b.forEach { buffer.putFloat(it) }
-    g.forEach { buffer.putFloat(it) }
-    r.forEach { buffer.putFloat(it) }
+    // NHWC for YOLO11 OBB as per script
+    for (i in 0 until total) {
+        buffer.putFloat(r[i] / 255f)
+        buffer.putFloat(g[i] / 255f)
+        buffer.putFloat(b[i] / 255f)
+    }
 
     buffer.rewind()
     return PreprocessResult(
@@ -156,35 +159,32 @@ fun parseOutput(
     ratio: Float,
     dx: Float,
     dy: Float,
-    confThreshold: Float = 0.3f
+    confThreshold: Float = 0.25f,
+    imgSize: Int = 416
 ): List<Detection> {
     val detections = mutableListOf<Detection>()
-    for (row in output[0]) {
-        val cx = row[0]
-        val cy = row[1]
-        val w = row[2]
-        val h = row[3]
-        val obj = row[4]
+    // Output is (1, 6, 3549). We received it as Array(1) { Array(6) { FloatArray(3549) } }
+    // but the input in the call was Array(1) { Array(3549) { FloatArray(9) } } - which was wrong.
+    // Let's assume output is [6][3549] for simplicity in implementation.
+    
+    val numAnchors = output[0][0].size // 3549
+    
+    for (i in 0 until numAnchors) {
+        val xc = output[0][0][i] * imgSize
+        val yc = output[0][1][i] * imgSize
+        val w = output[0][2][i] * imgSize
+        val h = output[0][3][i] * imgSize
+        val conf = output[0][4][i]
+        val angle = output[0][5][i]
 
-        var bestClass = -1
-        var bestScore = 0f
+        if (conf < confThreshold) continue
 
-        for (i in 5 until row.size) {
-            val score = obj * row[i]
-            if (score > bestScore) {
-                bestScore = score
-                bestClass = i - 5
-            }
-        }
+        val x1 = ((xc - w / 2f) - dx) / ratio
+        val y1 = ((yc - h / 2f) - dy) / ratio
+        val x2 = ((xc + w / 2f) - dx) / ratio
+        val y2 = ((yc + h / 2f) - dy) / ratio
 
-        if (bestScore < confThreshold) continue
-
-        val x1 = ((cx - w / 2f) - dx) / ratio
-        val y1 = ((cy - h / 2f) - dy) / ratio
-        val x2 = ((cx + w / 2f) - dx) / ratio
-        val y2 = ((cy + h / 2f) - dy) / ratio
-
-        detections.add(Detection(RectF(x1, y1, x2, y2), bestScore, bestClass))
+        detections.add(Detection(RectF(x1, y1, x2, y2), conf, 0, angle = angle))
     }
     return detections
 }
@@ -369,6 +369,7 @@ fun mergeToFittedBoxes(
         var maxBottom = seed.rect.bottom
         var bestScore = seed.score
         var bestColor = seed.rectColor
+        var bestAngle = seed.angle
         var changed: Boolean
 
         do {
@@ -386,6 +387,7 @@ fun mergeToFittedBoxes(
                     if (other.score > bestScore) {
                         bestScore = other.score
                         bestColor = other.rectColor
+                        bestAngle = other.angle
                     }
                     iterator.remove()
                     changed = true
@@ -393,7 +395,7 @@ fun mergeToFittedBoxes(
             }
         } while (changed)
 
-        result.add(Detection(RectF(minLeft, minTop, maxRight, maxBottom), bestScore, seed.classId, bestColor))
+        result.add(Detection(RectF(minLeft, minTop, maxRight, maxBottom), bestScore, seed.classId, bestColor, bestAngle))
     }
     return result
 }

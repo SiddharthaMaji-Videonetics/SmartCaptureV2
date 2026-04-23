@@ -77,19 +77,43 @@ fun CapturePage(
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
+            val model = try {
+                loadModelFile(context, "box_detector.tflite")
+            } catch (e: Exception) {
+                Log.e("CapturePage", "Failed to load model file", e)
+                return@withContext
+            }
 
-            val options = Interpreter.Options()
+            var interp: Interpreter? = null
             var delegate: GpuDelegate? = null
 
             try {
-                delegate = GpuDelegate()
-                options.addDelegate(delegate)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+                // Attempt to initialize with GPU delegate
+                val options = Interpreter.Options()
+                try {
+                    delegate = GpuDelegate()
+                    options.addDelegate(delegate)
+                } catch (e: Exception) {
+                    Log.e("CapturePage", "GpuDelegate creation failed: ${e.message}")
+                }
 
-            val model = loadModelFile(context, "model1.tflite")
-            val interp = Interpreter(model, options)
+                interp = Interpreter(model, options)
+                Log.d("CapturePage", "Interpreter initialized (GPU: ${delegate != null})")
+            } catch (e: Exception) {
+                Log.e("CapturePage", "Interpreter initialization with delegate failed: ${e.message}. Falling back to CPU.")
+                delegate?.close()
+                delegate = null
+                
+                try {
+                    val cpuOptions = Interpreter.Options().apply {
+                        setNumThreads(4)
+                    }
+                    interp = Interpreter(model, cpuOptions)
+                    Log.d("CapturePage", "Interpreter initialized with CPU fallback")
+                } catch (e2: Exception) {
+                    Log.e("CapturePage", "CPU fallback also failed", e2)
+                }
+            }
 
             withContext(Dispatchers.Main) {
                 interpreter = interp
@@ -120,40 +144,42 @@ fun CapturePage(
 
     when {
         cameraPermissionState.status.isGranted -> {
-                CapturePageComponent(
-                    interpreter = interpreter!!,
-                    focusedObj = focusedObj,
-                    inst = instruction,
-                    captureTrigger = captureTrigger,
-                    isCapturable = isCapturable,
-                    onCaptureImage = {
-                        viewModel.captureImage()
-                    },
-                    onFullImageCapture = {
-                        viewModel.captureReset()
-                        sharedViewModel.saveCapturedImage(it)
-                        focusedObj?.apply {
-                            sharedViewModel.saveCapturedImageBoundBox(this)
-                        }
-                        navController.navigate("image_details")
-                    },
-                    updateCanvasSize = { w, h ->
-                        viewModel.updateCanvasSize(w, h)
-                    },
-                    onFocusRectRect = {
-                        viewModel.setFocusBox(it)
-
-                    },
-                    onImageDimensionsCaptured = { w, h ->
-                        sharedViewModel.saveSourceImageDimensions(w, h)
+            CapturePageComponent(
+                interpreter = interpreter!!,
+                focusedObj = focusedObj,
+                inst = instruction,
+                captureTrigger = captureTrigger,
+                isCapturable = isCapturable,
+                onCaptureImage = {
+                    viewModel.captureImage()
+                },
+                onFullImageCapture = { rotation, bitmap ->
+                    viewModel.captureReset()
+                    sharedViewModel.saveCapturedImage(bitmap)
+                    focusedObj?.apply {
+                        sharedViewModel.saveCapturedImageBoundBox(this)
                     }
-                ) { detections ->
-
-                    //removed heavy logging per frame
-                    viewModel.setDetection(detections)
+                    // Save metadata
+                    sharedViewModel.saveMetadata(
+                        quality = 0.92f,
+                        rotation = rotation,
+                        lat = 22.5726,
+                        lon = 88.3639
+                    )
+                    navController.navigate("image_details")
+                },
+                updateCanvasSize = { w, h ->
+                    viewModel.updateCanvasSize(w, h)
+                },
+                onFocusRectRect = {
+                    viewModel.setFocusBox(it)
+                },
+                onImageDimensionsCaptured = { w, h ->
+                    sharedViewModel.saveSourceImageDimensions(w, h)
                 }
-
-
+            ) { detections ->
+                viewModel.setDetection(detections)
+            }
         }
 
         cameraPermissionState.status.shouldShowRationale -> {
@@ -177,6 +203,7 @@ fun CapturePage(
         }
     }
 }
+
 @Composable
 fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
@@ -184,7 +211,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          captureTrigger: Boolean = false,
                          inst: AlignmentVector? = null,
                          isCapturable: Boolean = false,
-                         onFullImageCapture:(Bitmap)-> Unit ={},
+                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                          onCaptureImage:()-> Unit ={},
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->},
                          onFocusRectRect:(RectF)-> Unit = {},
@@ -198,7 +225,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                     onCaptureImage.invoke()
                 }) {
                     Icon(painterResource(R.drawable.ic_camera),
-                        contentDescription = "Edit Bounding box",)
+                        contentDescription = "Capture Image",)
                 }
             }
 
@@ -227,14 +254,12 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
-                        onFullImageCapture:(Bitmap)-> Unit ={},
+                        onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                         onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
-    val scope = rememberCoroutineScope()
 
-    var isBoundBoxEdit by remember { mutableStateOf(false) }
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
 
 
@@ -258,46 +283,41 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             }
 
                             isProcessing = true
-                           //Async processing
-                            //scope.launch(Dispatchers.Default) {
-                                try {
-                                    val prep = preprocess(imageProxy)
+                            try {
+                                val prep = preprocess(imageProxy, 416)
 
-                                    val output = Array(1) { Array(3549) { FloatArray(9) } }
+                                // YOLO11 OBB Output: (1, 6, 3549)
+                                val output = Array(1) { Array(6) { FloatArray(3549) } }
 
-                                    interpreter?.run(prep.buffer, output)
+                                interpreter?.run(prep.buffer, output)
 
-                                    val detections = parseOutput(
-                                        output,
-                                        prep.ratio,
-                                        prep.dx,
-                                        prep.dy
-                                    )
+                                val detections = parseOutput(
+                                    output,
+                                    prep.ratio,
+                                    prep.dx,
+                                    prep.dy,
+                                    confThreshold = 0.10f, // Adjusted for YOLO11 OBB int8
+                                    imgSize = 416
+                                )
 
-                                    val finalDetections =
-                                        nmsPerClass(detections).filter { it.score > 0.9 }
+                                val finalDetections = nmsPerClass(detections)
+                                val merged = mergeToFittedBoxes(finalDetections, 5f)
 
-                                    val merged = mergeToFittedBoxes(finalDetections, 5f)
+                                detectionList = merged.toList()
+                                onDetectionChanges.invoke(merged)
+                                imageWidth = prep.srcWidth.toFloat()
+                                imageHeight = prep.srcHeight.toFloat()
+                                onImageDimensionsCaptured(imageWidth, imageHeight)
 
-                                  //  withContext(Dispatchers.Main) {
-                                        detectionList = merged.toList()
-                                        onDetectionChanges.invoke(merged)
-                                        imageWidth = prep.srcWidth.toFloat()
-                                        imageHeight = prep.srcHeight.toFloat()
-                                        onImageDimensionsCaptured(imageWidth, imageHeight)
-                                    Log.e("img","w=${imageProxy.width}, h=${imageProxy.height}")
-                                   // }
-
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                } finally {
-                                    isProcessing = false
-                                    imageProxy.close()
-                                }
-                            //}
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            } finally {
+                                isProcessing = false
+                                imageProxy.close()
+                            }
                         },
-                        onFullImageCapture = {
-                            onFullImageCapture.invoke(it)
+                        onFullImageCapture = { rotation, bitmap ->
+                            onFullImageCapture.invoke(rotation, bitmap)
                         }
                     )
                     BoundingBoxOverlay(
@@ -348,32 +368,14 @@ fun CameraDetectionView(interpreter: Interpreter?,
                     modifier = Modifier.fillMaxSize(),
                     imageWidth = imageWidth,
                     imageHeight = imageHeight,
-                    isEditable = isBoundBoxEdit,
-                    //isCenterGuideVisible = true,
+                    isEditable = false,
                     onImageRectChanged = {
-
                         onFocusRectRect.invoke(it)
                     },
                     onScreenRectChanged = {
                         focusBox = it
                     }
                 )}
-
-            ToolbarComponent(isBoundBoxEdit, onBoundBoxEdit = {
-                isBoundBoxEdit = it
-            })
         }
-
-    }
-
-
-
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    SmartCaptureTheme {
-        CapturePageComponent()
     }
 }

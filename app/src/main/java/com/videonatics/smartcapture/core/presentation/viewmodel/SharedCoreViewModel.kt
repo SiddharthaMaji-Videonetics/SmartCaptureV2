@@ -28,6 +28,11 @@ class SharedCoreViewModel @Inject constructor(
     private var sourceImageWidth: Float = 0f
     private var sourceImageHeight: Float = 0f
 
+    private var imageQuality: Float = 0f
+    private var rotationAngle: Float = 0f
+    private var latitude: Double = 0.0
+    private var longitude: Double = 0.0
+
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
     }
@@ -57,6 +62,18 @@ class SharedCoreViewModel @Inject constructor(
 
     fun getSourceImageWidth(): Float = sourceImageWidth
     fun getSourceImageHeight(): Float = sourceImageHeight
+
+    fun saveMetadata(quality: Float, rotation: Float, lat: Double, lon: Double) {
+        imageQuality = quality
+        rotationAngle = rotation
+        latitude = lat
+        longitude = lon
+    }
+
+    fun getImageQuality(): Float = imageQuality
+    fun getRotationAngle(): Float = rotationAngle
+    fun getLatitude(): Double = latitude
+    fun getLongitude(): Double = longitude
 
 
     var themeMode = coreRepository.getThemeMode()
