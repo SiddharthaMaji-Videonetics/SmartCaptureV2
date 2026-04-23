@@ -2,7 +2,7 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,35 +45,58 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.videonatics.smartcapture.core.loadFatBoxLabels
-import com.videonatics.smartcapture.core.loadFatBoxModel
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
+import com.videonatics.smartcapture.feature.details.data.model.ImageQualityResult
+import com.videonatics.smartcapture.feature.details.presentation.viewmodel.CaptureDetailsViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
 fun CaptureDetailsPage(
     modifier: Modifier = Modifier,
     navController: NavController,
-    sharedViewModel: SharedCoreViewModel
+    sharedViewModel: SharedCoreViewModel,
+    viewModel: CaptureDetailsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val bmp = sharedViewModel.getCapturedImage()
-    val classifier = remember {
-        FatBoxClassifier(
-            interpreter = loadFatBoxModel(context),
-            labels = loadFatBoxLabels(context)
-        )
+    val stageId = sharedViewModel.getCurrentStageId() ?: ""
+    val uploadState by viewModel.uploadState.collectAsState()
+    val qualityState by viewModel.qualityState.collectAsState()
+    val classificationState by viewModel.classificationState.collectAsState()
+
+    LaunchedEffect(uploadState) {
+        when (uploadState) {
+            is CaptureDetailsViewModel.UploadState.Success -> {
+                Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
+                navController.popBackStack()
+            }
+            is CaptureDetailsViewModel.UploadState.Error -> {
+                Toast.makeText(context, (uploadState as CaptureDetailsViewModel.UploadState.Error).message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
     }
 
     ImageAnalysisPageComponent(
         capturedImage = bmp,
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
-        classifier = classifier
-    ) {
-        navController.popBackStack()
-    }
+        isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
+        qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
+        classificationResult = (classificationState as? CaptureDetailsViewModel.ClassificationState.Success)?.result,
+        onAnalyze = { bitmap ->
+            viewModel.analyzeQuality(bitmap)
+            viewModel.classifyImage(bitmap)
+        },
+        onUploadClick = {
+            bmp?.let { viewModel.uploadImage(stageId, it) }
+        },
+        onClose = {
+            navController.popBackStack()
+        }
+    )
 }
 
 @Composable
@@ -78,7 +104,11 @@ fun ImageAnalysisPageComponent(
     modifier: Modifier = Modifier,
     capturedImage: Bitmap? = null,
     capturedImageBoundingBox: RectF? = null,
-    classifier: FatBoxClassifier? = null,
+    isUploading: Boolean = false,
+    qualityResult: ImageQualityResult? = null,
+    classificationResult: FatBoxClassifier.Result? = null,
+    onAnalyze: (Bitmap) -> Unit = {},
+    onUploadClick: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
     var contentType by remember { mutableStateOf("Analyzing...") }
@@ -89,9 +119,29 @@ fun ImageAnalysisPageComponent(
     var contentTypeOverrideReason by remember { mutableStateOf("") }
     var qualityOverrideReason by remember { mutableStateOf("") }
 
+    LaunchedEffect(qualityResult) {
+        qualityResult?.let { r ->
+            quality = when {
+                r.isBlurry && r.isUnderlit -> "Blurry & Underlit"
+                r.isBlurry -> "Blurry"
+                r.isUnderlit -> "Underlit"
+                r.hasIssue -> r.issues.joinToString(" & ") { it.lowercase().replaceFirstChar(Char::uppercase) }
+                else -> "Good"
+            }
+            isQualityValid = !r.hasIssue && !r.isBlurry && !r.isUnderlit
+        }
+    }
+
+    LaunchedEffect(classificationResult) {
+        classificationResult?.let { it ->
+            contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
+            isContentTypeValid = it.label != "FatBoxNot"
+        }
+    }
+
     val isUploadEnabled = (isContentTypeValid || contentTypeOverrideReason.isNotBlank()) &&
             (isQualityValid || qualityOverrideReason.isNotBlank()) &&
-            contentType != "Analyzing..."
+            contentType != "Analyzing..." && !isUploading
 
     Scaffold(
         bottomBar = {
@@ -102,10 +152,18 @@ fun ImageAnalysisPageComponent(
                         .padding(16.dp)
                 ) {
                     Button(
-                        onClick = { /* Handle Upload */ },
+                        onClick = onUploadClick,
                         enabled = isUploadEnabled,
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        if (isUploading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Text("Upload")
                     }
                 }
@@ -133,14 +191,7 @@ fun ImageAnalysisPageComponent(
                         imageHeight = 640f,
                         modifier = Modifier.fillMaxSize(),
                         onTransformedImage = { transformedBmp ->
-                            val result = classifier?.classify(transformedBmp)
-                            result?.let {
-                                contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
-                                isContentTypeValid = it.label != "FatBoxNot"
-                                
-                                quality = it.quality
-                                isQualityValid = it.quality == "good"
-                            }
+                            onAnalyze(transformedBmp)
                         }
                     )
                 }
@@ -185,16 +236,9 @@ fun ImageAnalysisPageComponent(
                 item { HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f)) }
 
                 item {
-                    val qualityDisplay = when(quality) {
-                        "good" -> "Good"
-                        "blurry" -> "Blurry"
-                        "underlit" -> "Underlit"
-                        "blurry_underlit" -> "Blurry & Underlit"
-                        else -> quality
-                    }
                     AnalysisField(
                         label = "Image Quality",
-                        value = qualityDisplay,
+                        value = quality,
                         isValid = isQualityValid,
                         overrideReason = qualityOverrideReason,
                         onOverrideReasonChange = { qualityOverrideReason = it }

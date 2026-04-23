@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.core.di
 
 import com.videonatics.smartcapture.core.Constants
+import com.videonatics.smartcapture.core.Pref
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -8,6 +9,7 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -24,7 +26,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideHttpClient(): HttpClient {
+    fun provideHttpClient(pref: Pref): HttpClient {
         return HttpClient(Android) {
             install(Logging) {
                 level = LogLevel.ALL
@@ -44,6 +46,9 @@ object NetworkModule {
             defaultRequest {
                 url(Constants.BASE_URL)
                 contentType(ContentType.Application.Json)
+                pref.accessToken?.let {
+                    header("Authorization", "Bearer $it")
+                }
             }
         }
     }

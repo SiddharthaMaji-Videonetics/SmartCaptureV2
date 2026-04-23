@@ -29,21 +29,11 @@ class FatBoxClassifier(
 
         val maxIdx = probs.indices.maxByOrNull { probs[it] } ?: -1
 
-        // Mock quality logic for now - this should ideally come from another model or image processing
-        val quality = estimateQuality(bitmap)
-
         return Result(
             label = labels.getOrElse(maxIdx) { "Unknown" },
             confidence = probs.getOrElse(maxIdx) { 0f },
-            probabilities = probs,
-            quality = quality
+            probabilities = probs
         )
-    }
-
-    private fun estimateQuality(bitmap: Bitmap): String {
-        // Simple mock logic for quality flags based on image properties or random for UI testing
-        // In real app, this would use a Blur detector and Brightness detector
-        return "good" 
     }
 
     private fun preprocess(bitmap: Bitmap): ByteBuffer {
@@ -63,7 +53,7 @@ class FatBoxClassifier(
 
             // Normalize EXACTLY like Python
             buffer.putFloat((r / 255f - MEAN[0]) / STD[0])
-            buffer.putFloat((g / 255f - MEAN[1]) / STD[1])
+            buffer.putFloat((g / 255f - MEAN[2]) / STD[2])
             buffer.putFloat((b / 255f - MEAN[2]) / STD[2])
         }
 
@@ -109,7 +99,6 @@ class FatBoxClassifier(
     data class Result(
         val label: String,
         val confidence: Float,
-        val probabilities: FloatArray,
-        val quality: String = "good"
+        val probabilities: FloatArray
     )
 }

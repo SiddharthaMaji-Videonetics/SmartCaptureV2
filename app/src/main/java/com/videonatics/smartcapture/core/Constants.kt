@@ -10,5 +10,6 @@ object Constants {
         const val MY_TASKS = "tasks"
         const val DASHBOARD = "dashboard"
         const val ME = "auth/me"
+        const val UPLOAD_IMAGE = "upload/stages/"
     }
 }

@@ -23,6 +23,13 @@ class SharedCoreViewModel @Inject constructor(
 ) : ViewModel() {
     private var capturedImage: Bitmap? = null
     private var capturedImageBoundBox: RectF? = null
+    private var currentStageId: String? = null
+
+    private var imageResizedWidth: Int? = null
+    private var imageResizedHeight: Int? = null
+
+
+
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
     }
@@ -35,6 +42,14 @@ class SharedCoreViewModel @Inject constructor(
 
     fun getCapturedImageBoundBox(): RectF? {
         return capturedImageBoundBox
+    }
+
+    fun saveCurrentStageId(stageId: String) {
+        currentStageId = stageId
+    }
+
+    fun getCurrentStageId(): String? {
+        return currentStageId
     }
 
 

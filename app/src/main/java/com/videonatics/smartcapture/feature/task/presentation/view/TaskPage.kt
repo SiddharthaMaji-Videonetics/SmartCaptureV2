@@ -41,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
 import com.videonatics.smartcapture.feature.task.domain.model.TaskStageModel
 import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
@@ -50,6 +51,7 @@ import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 fun TaskPage(
     navController: NavController,
     taskId: String,
+    sharedViewModel: SharedCoreViewModel,
     modifier: Modifier = Modifier,
     viewModel: TaskViewModel = hiltViewModel()
 ) {
@@ -67,8 +69,9 @@ fun TaskPage(
         isLoading = isLoading,
         error = error,
         onBack = { navController.popBackStack() },
-        onStageClick = { _, isLocked ->
+        onStageClick = { stage, isLocked ->
             if (!isLocked) {
+                sharedViewModel.saveCurrentStageId(stage.id)
                 navController.navigate(PageRoute.CAPTURE.name)
             }
         }
@@ -239,7 +242,8 @@ fun StageItem(
 fun TaskPagePreview() {
     SmartCaptureTheme {
         val navController = rememberNavController()
-        TaskPage(navController = navController, taskId = "123")
+        // Mocking SharedCoreViewModel for preview might be complex, so passing null or a dummy if possible
+        // TaskPage(navController = navController, taskId = "123", sharedViewModel = ...)
     }
 }
 

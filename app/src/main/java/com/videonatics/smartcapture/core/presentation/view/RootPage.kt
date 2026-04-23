@@ -85,7 +85,7 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 Log.e("task_id",taskId)
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
                 LocalizedPage(sharedViewModel) {
-                    TaskPage(navController, taskId = taskId)
+                    TaskPage(navController, taskId = taskId, sharedViewModel = sharedViewModel)
                 }
             }
 
