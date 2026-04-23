@@ -25,10 +25,8 @@ class SharedCoreViewModel @Inject constructor(
     private var capturedImageBoundBox: RectF? = null
     private var currentStageId: String? = null
 
-    private var imageResizedWidth: Int? = null
-    private var imageResizedHeight: Int? = null
-
-
+    private var sourceImageWidth: Float = 0f
+    private var sourceImageHeight: Float = 0f
 
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
@@ -51,6 +49,14 @@ class SharedCoreViewModel @Inject constructor(
     fun getCurrentStageId(): String? {
         return currentStageId
     }
+
+    fun saveSourceImageDimensions(width: Float, height: Float) {
+        sourceImageWidth = width
+        sourceImageHeight = height
+    }
+
+    fun getSourceImageWidth(): Float = sourceImageWidth
+    fun getSourceImageHeight(): Float = sourceImageHeight
 
 
     var themeMode = coreRepository.getThemeMode()

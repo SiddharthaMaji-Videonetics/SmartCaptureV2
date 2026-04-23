@@ -50,7 +50,6 @@ import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
-import com.videonatics.smartcapture.feature.details.presentation.view.ImageAnalysisPageComponent
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -135,7 +134,6 @@ fun CapturePage(
                         sharedViewModel.saveCapturedImage(it)
                         focusedObj?.apply {
                             sharedViewModel.saveCapturedImageBoundBox(this)
-
                         }
                         navController.navigate("image_details")
                     },
@@ -145,6 +143,9 @@ fun CapturePage(
                     onFocusRectRect = {
                         viewModel.setFocusBox(it)
 
+                    },
+                    onImageDimensionsCaptured = { w, h ->
+                        sharedViewModel.saveSourceImageDimensions(w, h)
                     }
                 ) { detections ->
 
@@ -185,7 +186,10 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          isCapturable: Boolean = false,
                          onFullImageCapture:(Bitmap)-> Unit ={},
                          onCaptureImage:()-> Unit ={},
-                         updateCanvasSize:(Float, Float) -> Unit={ _, _->}, onFocusRectRect:(RectF)-> Unit = {}, onDetectionChanges: (List<Detection>) -> Unit = {}) {
+                         updateCanvasSize:(Float, Float) -> Unit={ _, _->},
+                         onFocusRectRect:(RectF)-> Unit = {},
+                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
+                         onDetectionChanges: (List<Detection>) -> Unit = {}) {
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
@@ -209,7 +213,8 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 updateCanvasSize,
                 onFocusRectRect,
                 onFullImageCapture = onFullImageCapture,
-                onDetectionChanges)
+                onImageDimensionsCaptured = onImageDimensionsCaptured,
+                onDetectionChanges = onDetectionChanges)
         }
 
     }
@@ -223,6 +228,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
                         onFullImageCapture:(Bitmap)-> Unit ={},
+                        onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                         onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
@@ -278,6 +284,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                         onDetectionChanges.invoke(merged)
                                         imageWidth = prep.srcWidth.toFloat()
                                         imageHeight = prep.srcHeight.toFloat()
+                                        onImageDimensionsCaptured(imageWidth, imageHeight)
                                     Log.e("img","w=${imageProxy.width}, h=${imageProxy.height}")
                                    // }
 

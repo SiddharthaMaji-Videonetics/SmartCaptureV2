@@ -3,13 +3,11 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 import android.graphics.Bitmap
 import android.graphics.RectF
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,14 +21,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import com.videonatics.smartcapture.core.domain.model.Detection
 
 @Composable
 fun ZoomableImageWithBoundingBox(
@@ -41,31 +38,28 @@ fun ZoomableImageWithBoundingBox(
     modifier: Modifier = Modifier,
     boxColor: Color = Color.Red,
     strokeWidth: Dp = 3.dp,
+    boundedImage: Boolean = false,
     onTransformedImage: (Bitmap) -> Unit = {}
 ) {
-
     var userScale by remember { mutableStateOf(1f) }
     var userOffset by remember { mutableStateOf(Offset.Zero) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
     val minScale = 1f
     val maxScale = 5f
-
-    // 👇 Track gesture end
+    
     var isTransforming by remember { mutableStateOf(false) }
 
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         isTransforming = true
-
-        val newScale = (userScale * zoomChange).coerceIn(minScale, maxScale)
-        val scaleFactor = newScale / userScale
-
-        userScale = newScale
+        userScale = (userScale * zoomChange).coerceIn(minScale, maxScale)
         userOffset += panChange
     }
 
     Box(
         modifier = modifier
             .clipToBounds()
+            .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = {
@@ -76,131 +70,100 @@ fun ZoomableImageWithBoundingBox(
             }
             .transformable(state = transformState)
             .pointerInput(Unit) {
-                // Detect gesture end
                 awaitPointerEventScope {
                     while (true) {
-                        awaitPointerEvent()
-                        if (isTransforming) {
+                        val event = awaitPointerEvent()
+                        if (event.changes.all { !it.pressed }) {
                             isTransforming = false
                         }
                     }
                 }
             }
     ) {
-
-        var latestOutput by remember { mutableStateOf<Bitmap?>(null) }
+        val canvasW = canvasSize.width.toFloat()
+        val canvasH = canvasSize.height.toFloat()
 
         Canvas(modifier = Modifier.fillMaxSize()) {
+            if (imageWidth <= 0f || imageHeight <= 0f || canvasW <= 0f || canvasH <= 0f) return@Canvas
 
-            if (imageWidth == 0f || imageHeight == 0f) return@Canvas
-
-            val canvasW = size.width
-            val canvasH = size.height
-
-            val baseScale = minOf(
-                canvasW / imageWidth,
-                canvasH / imageHeight
-            )
-
-            val displayedW = imageWidth * baseScale
-            val displayedH = imageHeight * baseScale
-
-            val centerOffset = Offset(
-                (canvasW - displayedW) / 2f,
-                (canvasH - displayedH) / 2f
-            )
-
+            val displayWidth = if (boundedImage) rect.width() else imageWidth
+            val displayHeight = if (boundedImage) rect.height() else imageHeight
+            
+            val baseScale = minOf(canvasW / displayWidth, canvasH / displayHeight)
             val finalScale = baseScale * userScale
-            val finalOffset = centerOffset + userOffset
 
-            // =============================
-            // 🔥 Compute visible image rect
-            // =============================
-            val visibleLeft = ((0f - finalOffset.x) / finalScale)
-                .coerceIn(0f, imageWidth)
-
-            val visibleTop = ((0f - finalOffset.y) / finalScale)
-                .coerceIn(0f, imageHeight)
-
-            val visibleRight = ((canvasW - finalOffset.x) / finalScale)
-                .coerceIn(0f, imageWidth)
-
-            val visibleBottom = ((canvasH - finalOffset.y) / finalScale)
-                .coerceIn(0f, imageHeight)
-
-            val visibleWidth = (visibleRight - visibleLeft).coerceAtLeast(1f)
-            val visibleHeight = (visibleBottom - visibleTop).coerceAtLeast(1f)
-
-            // =============================
-            // 🎯 Create cropped bitmap
-            // =============================
-            val safeLeft = visibleLeft.toInt().coerceIn(0, bitmap.width - 1)
-            val safeTop = visibleTop.toInt().coerceIn(0, bitmap.height - 1)
-
-            val safeWidth = visibleWidth.toInt()
-                .coerceAtMost(bitmap.width - safeLeft)
-                .coerceAtLeast(1)
-
-            val safeHeight = visibleHeight.toInt()
-                .coerceAtMost(bitmap.height - safeTop)
-                .coerceAtLeast(1)
-
-            val cropped = try {
-                Bitmap.createBitmap(
-                    bitmap,
-                    safeLeft,
-                    safeTop,
-                    safeWidth,
-                    safeHeight
-                )
-            } catch (e: Exception) {
-                null
-            }
-
-            val output = cropped?.let {
-                Bitmap.createScaledBitmap(
-                    it,
-                    canvasW.toInt(),
-                    canvasH.toInt(),
-                    true
-                )
-            }
-
-            latestOutput = output
-
-            // =============================
-            // 🎨 DRAW
-            // =============================
             withTransform({
-
-                translate(finalOffset.x, finalOffset.y)
-                scale(finalScale, finalScale)
-
+                // Move origin to center of canvas and apply user pan
+                translate(canvasW / 2f + userOffset.x, canvasH / 2f + userOffset.y)
+                
+                // Scale around the center of the canvas
+                scale(userScale, userScale, pivot = Offset.Zero)
+                
+                // Apply fit scale
+                scale(baseScale, baseScale, pivot = Offset.Zero)
+                
+                if (boundedImage) {
+                    // Center the rect content
+                    translate(-rect.centerX(), -rect.centerY())
+                    // Clip to only show the rect area
+                    clipRect(left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom)
+                } else {
+                    // Center the full image
+                    translate(-imageWidth / 2f, -imageHeight / 2f)
+                }
             }) {
-
                 drawImage(
                     image = bitmap.asImageBitmap(),
-                    dstSize = IntSize(
-                        imageWidth.toInt(),
-                        imageHeight.toInt()
-                    )
+                    dstSize = IntSize(imageWidth.toInt(), imageHeight.toInt())
                 )
 
-                drawRect(
-                    color = boxColor,
-                    topLeft = Offset(rect.left, rect.top),
-                    size = Size(rect.width(), rect.height()),
-                    style = Stroke(width = strokeWidth.toPx() / finalScale)
-                )
+                if (!boundedImage) {
+                    drawRect(
+                        color = boxColor,
+                        topLeft = Offset(rect.left, rect.top),
+                        size = Size(rect.width(), rect.height()),
+                        style = Stroke(width = strokeWidth.toPx() / finalScale)
+                    )
+                }
             }
         }
 
-        // =============================
-        // 🚀 Emit ONLY when gesture ends
-        // =============================
-        LaunchedEffect(isTransforming) {
-            if (!isTransforming) {
-                latestOutput?.let { onTransformedImage(it) }
+        // Generate transformed image for classification - Returns exactly what is visible on screen
+        LaunchedEffect(isTransforming, userScale, userOffset, canvasSize, boundedImage, bitmap, rect) {
+            if (!isTransforming && canvasW > 0 && canvasH > 0 && imageWidth > 0 && imageHeight > 0) {
+                try {
+                    val displayWidth = if (boundedImage) rect.width() else imageWidth
+                    val displayHeight = if (boundedImage) rect.height() else imageHeight
+                    
+                    val baseScale = minOf(canvasW / displayWidth, canvasH / displayHeight)
+                    val finalScale = baseScale * userScale
+
+                    val centerX = if (boundedImage) rect.centerX() else imageWidth / 2f
+                    val centerY = if (boundedImage) rect.centerY() else imageHeight / 2f
+
+                    // Visible region in "image logical coordinates"
+                    val vLeft = centerX + (-canvasW / 2f - userOffset.x) / finalScale
+                    val vTop = centerY + (-canvasH / 2f - userOffset.y) / finalScale
+                    val vRight = centerX + (canvasW / 2f - userOffset.x) / finalScale
+                    val vBottom = centerY + (canvasH / 2f - userOffset.y) / finalScale
+
+                    // Map to bitmap pixels
+                    val scaleX = bitmap.width.toFloat() / imageWidth
+                    val scaleY = bitmap.height.toFloat() / imageHeight
+
+                    val sLeft = (vLeft * scaleX).toInt().coerceIn(0, bitmap.width - 1)
+                    val sTop = (vTop * scaleY).toInt().coerceIn(0, bitmap.height - 1)
+                    val sRight = (vRight * scaleX).toInt().coerceIn(sLeft + 1, bitmap.width)
+                    val sBottom = (vBottom * scaleY).toInt().coerceIn(sTop + 1, bitmap.height)
+
+                    val cropped = Bitmap.createBitmap(bitmap, sLeft, sTop, sRight - sLeft, sBottom - sTop)
+                    
+                    // Scale to match the canvas viewport size for a true "what you see is what you get" result
+                    val scaled = Bitmap.createScaledBitmap(cropped, canvasSize.width, canvasSize.height, true)
+                    onTransformedImage(scaled)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }

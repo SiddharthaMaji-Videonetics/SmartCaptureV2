@@ -67,6 +67,9 @@ fun CaptureDetailsPage(
     val qualityState by viewModel.qualityState.collectAsState()
     val classificationState by viewModel.classificationState.collectAsState()
 
+    val sourceWidth = sharedViewModel.getSourceImageWidth()
+    val sourceHeight = sharedViewModel.getSourceImageHeight()
+
     LaunchedEffect(uploadState) {
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
@@ -83,6 +86,8 @@ fun CaptureDetailsPage(
     ImageAnalysisPageComponent(
         capturedImage = bmp,
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
+        imageWidth = sourceWidth,
+        imageHeight = sourceHeight,
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
         classificationResult = (classificationState as? CaptureDetailsViewModel.ClassificationState.Success)?.result,
@@ -104,6 +109,8 @@ fun ImageAnalysisPageComponent(
     modifier: Modifier = Modifier,
     capturedImage: Bitmap? = null,
     capturedImageBoundingBox: RectF? = null,
+    imageWidth: Float = 480f,
+    imageHeight: Float = 640f,
     isUploading: Boolean = false,
     qualityResult: ImageQualityResult? = null,
     classificationResult: FatBoxClassifier.Result? = null,
@@ -134,14 +141,13 @@ fun ImageAnalysisPageComponent(
 
     LaunchedEffect(classificationResult) {
         classificationResult?.let { it ->
-            if(it.confidence>0.8){
+            if(it.confidence > 0.8) {
                 contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
                 isContentTypeValid = it.label != "FatBoxNot"
-            }else{
+            } else {
                 contentType = "Not FatBox"
                 isContentTypeValid = false
             }
-
         }
     }
 
@@ -193,8 +199,9 @@ fun ImageAnalysisPageComponent(
                     ZoomableImageWithBoundingBox(
                         bitmap = capturedImage,
                         rect = capturedImageBoundingBox,
-                        imageWidth = 480f,
-                        imageHeight = 640f,
+                        boundedImage = false,
+                        imageWidth = imageWidth,
+                        imageHeight = imageHeight,
                         modifier = Modifier.fillMaxSize(),
                         onTransformedImage = { transformedBmp ->
                             onAnalyze(transformedBmp)
