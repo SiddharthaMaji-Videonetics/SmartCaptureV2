@@ -11,6 +11,7 @@ import com.videonatics.smartcapture.feature.details.data.model.ImageUploadRespon
 import com.videonatics.smartcapture.feature.details.domain.repository.ImageUploadRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.onUpload
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.post
@@ -24,10 +25,19 @@ class ImageUploadRepositoryImpl @Inject constructor(
     private val classifier: FatBoxClassifier
 ) : ImageUploadRepository {
 
-    override suspend fun uploadImage(stageId: String, imageBytes: ByteArray): Result<ImageUploadResponse> {
+    override suspend fun uploadImage(
+        stageId: String,
+        imageBytes: ByteArray,
+        onProgress: (Float) -> Unit
+    ): Result<ImageUploadResponse> {
         return safeApiCall(
             call = {
                 client.post("${Constants.Endpoints.UPLOAD_IMAGE}$stageId/image") {
+                    onUpload { bytesSentTotal, contentLength ->
+                        if (contentLength != null && contentLength > 0) {
+                            onProgress(bytesSentTotal.toFloat() / contentLength)
+                        }
+                    }
                     setBody(
                         MultiPartFormDataContent(
                             formData {

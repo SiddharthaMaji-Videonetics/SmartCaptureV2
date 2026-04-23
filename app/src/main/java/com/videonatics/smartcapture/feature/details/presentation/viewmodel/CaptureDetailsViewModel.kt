@@ -21,6 +21,9 @@ class CaptureDetailsViewModel @Inject constructor(
     private val _uploadState = MutableStateFlow<UploadState>(UploadState.Idle)
     val uploadState: StateFlow<UploadState> = _uploadState
 
+    private val _uploadProgress = MutableStateFlow(0f)
+    val uploadProgress: StateFlow<Float> = _uploadProgress
+
     private val _qualityState = MutableStateFlow<QualityState>(QualityState.Idle)
     val qualityState: StateFlow<QualityState> = _qualityState
 
@@ -48,9 +51,12 @@ class CaptureDetailsViewModel @Inject constructor(
     fun uploadImage(stageId: String, bitmap: Bitmap) {
         viewModelScope.launch {
             _uploadState.value = UploadState.Loading
+            _uploadProgress.value = 0f
             
             val imageBytes = bitmapToByteArray(bitmap)
-            val result = repository.uploadImage(stageId, imageBytes)
+            val result = repository.uploadImage(stageId, imageBytes) { progress ->
+                _uploadProgress.value = progress
+            }
             
             result.onSuccess {
                 _uploadState.value = UploadState.Success

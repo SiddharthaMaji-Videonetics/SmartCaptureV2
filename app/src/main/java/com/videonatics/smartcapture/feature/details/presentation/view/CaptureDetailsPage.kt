@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -74,6 +75,7 @@ fun CaptureDetailsPage(
     val bmp = sharedViewModel.getCapturedImage()
     val stageId = sharedViewModel.getCurrentStageId() ?: ""
     val uploadState by viewModel.uploadState.collectAsState()
+    val uploadProgress by viewModel.uploadProgress.collectAsState()
     val qualityState by viewModel.qualityState.collectAsState()
     val classificationState by viewModel.classificationState.collectAsState()
 
@@ -84,7 +86,7 @@ fun CaptureDetailsPage(
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
                 Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
-                navController.popBackStack()
+                navController.popBackStack(PageRoute.HOME.name, inclusive = false)
             }
             is CaptureDetailsViewModel.UploadState.Error -> {
                 Toast.makeText(context, (uploadState as CaptureDetailsViewModel.UploadState.Error).message, Toast.LENGTH_LONG).show()
@@ -99,6 +101,7 @@ fun CaptureDetailsPage(
         imageWidth = sourceWidth,
         imageHeight = sourceHeight,
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
+        uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
         classificationResult = (classificationState as? CaptureDetailsViewModel.ClassificationState.Success)?.result,
         onAnalyze = { bitmap ->
@@ -122,6 +125,7 @@ fun ImageAnalysisPageComponent(
     imageWidth: Float = 480f,
     imageHeight: Float = 640f,
     isUploading: Boolean = false,
+    uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,
     classificationResult: FatBoxClassifier.Result? = null,
     onAnalyze: (Bitmap) -> Unit = {},
@@ -167,30 +171,40 @@ fun ImageAnalysisPageComponent(
 
     Scaffold(
         bottomBar = {
-            BottomAppBar() {
-                Box(
+            BottomAppBar(
+                modifier = Modifier.height(if (isUploading) 100.dp else 80.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Button(
-                        onClick = onUploadClick,
-                        enabled = isUploadEnabled,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isUploading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                    if (isUploading) {
+                        Text(
+                            text = "Uploading... ${(uploadProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        LinearProgressIndicator(
+                            progress = { uploadProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    } else {
+                        Button(
+                            onClick = onUploadClick,
+                            enabled = isUploadEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Upload")
                         }
-                        Text("Upload")
                     }
                 }
             }
-
         }
     ) { paddingValues ->
         Column(
