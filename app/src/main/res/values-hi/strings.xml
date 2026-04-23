@@ -4,4 +4,7 @@
     <string name="back">पीछे</string>
     <string name="settings">सेटिंग्स</string>
     <string name="language">भाषा</string>
+    <string name="dashboard">डैशबोर्ड</string>
+    <string name="my_task">मेरा कार्य</string>
+    <string name="no_data_available">कोई डेटा उपलब्ध नहीं है</string>
 </resources>

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,20 +20,40 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
+import com.videonatics.smartcapture.feature.settings.presentation.viewmodel.SettingsViewModel
+import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun SettingsPage(navController: NavController, modifier: Modifier = Modifier) {
+fun SettingsPage(
+    navController: NavController,
+    viewModel: SettingsViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier
+) {
+    LaunchedEffect(key1 = true) {
+        viewModel.logoutSuccess.collect {
+            navController.navigate(PageRoute.AUTH.name) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     SettingsPageComponent(
         onBack = { navController.popBackStack() },
-        onLanguageClick = { navController.navigate(PageRoute.LANGUAGE.name) }
+        onLanguageClick = { navController.navigate(PageRoute.LANGUAGE.name) },
+        onLogoutClick = {
+            viewModel.logout()
+        }
     )
 }
 
@@ -41,6 +62,7 @@ fun SettingsPage(navController: NavController, modifier: Modifier = Modifier) {
 fun SettingsPageComponent(
     onBack: () -> Unit = {},
     onLanguageClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -76,6 +98,12 @@ fun SettingsPageComponent(
                 onClick = onLanguageClick
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            SettingsItem(
+                title = "Logout",
+                icon = Icons.AutoMirrored.Filled.Logout,
+                onClick = onLogoutClick
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
@@ -89,7 +117,9 @@ fun SettingsItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable{
+                onClick.invoke()
+            }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -106,5 +136,13 @@ fun SettingsItem(
                 .padding(start = 16.dp)
                 .weight(1f)
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SettingsPageComponentPreview() {
+    SmartCaptureTheme {
+        SettingsPageComponent()
     }
 }

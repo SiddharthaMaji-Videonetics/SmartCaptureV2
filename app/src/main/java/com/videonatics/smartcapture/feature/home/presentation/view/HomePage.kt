@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,11 +40,13 @@ import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
+import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
 fun HomePage(navController: NavController, modifier: Modifier = Modifier) {
     return HomePageComponent(
+        rootNavController = navController,
         onNavigateToLanguage = {
             navController.navigate(PageRoute.LANGUAGE.name)
         },
@@ -65,7 +69,8 @@ fun HomePageComponent(
     onSettings: () -> Unit = {},
     onCapture: () -> Unit = {},
     onTaskOpen: () -> Unit = {},
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    rootNavController: NavController = rememberNavController()
 ) {
     val navController = rememberNavController()
     val userName by viewModel.userName.collectAsState()
@@ -101,10 +106,10 @@ fun HomePageComponent(
                             }
                         },
                         icon = {
-                            Icon(tab.icon, contentDescription = tab.label)
+                            Icon(tab.icon, contentDescription = stringResource(tab.labelRes))
                         },
                         label = {
-                            Text(tab.label)
+                            Text(stringResource(tab.labelRes))
                         }
                     )
                 }
@@ -116,7 +121,7 @@ fun HomePageComponent(
                         TopAppBar(
                             title = {
                                 UserHeader(userName = userName, userType = userType)
-                            },
+                            }
                         )
                     }
                 }
@@ -125,7 +130,8 @@ fun HomePageComponent(
                     navController = navController,
                     modifier = Modifier.padding(innerPadding),
                     onTaskOpen = onTaskOpen,
-                    onNavigateToLanguage = onNavigateToLanguage
+                    onNavigateToLanguage = onNavigateToLanguage,
+                    rootNavController = rootNavController
                 )
             }
         }
@@ -136,7 +142,7 @@ fun HomePageComponent(
                     TopAppBar(
                         title = {
                             UserHeader(userName = userName, userType = userType)
-                        },
+                        }
                     )
                 }
             },
@@ -155,10 +161,10 @@ fun HomePageComponent(
                                 }
                             },
                             icon = {
-                                Icon(tab.icon, contentDescription = tab.label)
+                                Icon(tab.icon, contentDescription = stringResource(tab.labelRes))
                             },
                             label = {
-                                Text(tab.label)
+                                Text(stringResource(tab.labelRes))
                             }
                         )
                     }
@@ -169,7 +175,8 @@ fun HomePageComponent(
                 navController = navController,
                 modifier = Modifier.padding(innerPadding),
                 onTaskOpen = onTaskOpen,
-                onNavigateToLanguage = onNavigateToLanguage
+                onNavigateToLanguage = onNavigateToLanguage,
+                rootNavController = rootNavController
             )
         }
     }
@@ -180,7 +187,8 @@ fun HomeNavHost(
     navController: androidx.navigation.NavHostController,
     modifier: Modifier = Modifier,
     onTaskOpen: () -> Unit,
-    onNavigateToLanguage: () -> Unit
+    onNavigateToLanguage: () -> Unit,
+    rootNavController: NavController
 ) {
     NavHost(
         navController = navController,
@@ -190,7 +198,7 @@ fun HomeNavHost(
         composable(HomeTab.Dashboard.route) { DashboardScreen() }
         composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
         composable(HomeTab.Settings.route) { 
-            SettingsScreen(onNavigateToLanguage = onNavigateToLanguage) 
+            SettingsPage(navController = rootNavController)
         }
     }
 }
@@ -224,7 +232,7 @@ fun HomePageComponentS(modifier: Modifier = Modifier, onSettings: ()-> Unit = {}
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("No Capture data available")
+                Text(text = stringResource(id = com.videonatics.smartcapture.R.string.no_data_available))
                 ElevatedButton(
                     modifier = Modifier.padding(top = 16.dp),
                     onClick = {
