@@ -227,26 +227,6 @@ fun nmsPerClass(
     return result
 }
 
-fun loadLabels(context: Context): List<String> {
-    return context.assets.open("labels.txt")
-        .bufferedReader()
-        .readLines()
-}
-
-fun rotateRect(
-    rect: RectF,
-    imageWidth: Float,
-    imageHeight: Float,
-    rotationDegrees: Int
-): RectF {
-    return when (rotationDegrees) {
-        0 -> rect
-        90 -> RectF(rect.top, imageWidth - rect.right, rect.bottom, imageWidth - rect.left)
-        180 -> RectF(imageWidth - rect.right, imageHeight - rect.bottom, imageWidth - rect.left, imageHeight - rect.top)
-        270 -> RectF(imageHeight - rect.bottom, rect.left, imageHeight - rect.top, rect.right)
-        else -> rect
-    }
-}
 
 fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
     val nearLeft = abs(touch.x - rect.left) <= threshold

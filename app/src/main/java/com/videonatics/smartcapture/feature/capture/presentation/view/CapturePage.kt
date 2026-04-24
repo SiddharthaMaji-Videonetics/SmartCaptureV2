@@ -42,7 +42,6 @@ import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
-import com.videonatics.smartcapture.core.loadLabels
 import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.nmsPerClass
@@ -128,7 +127,6 @@ fun CapturePage(
         cameraPermissionState.launchPermissionRequest()
     }
 
-    // ⏳ Loading state
     if (interpreter == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -139,7 +137,6 @@ fun CapturePage(
         return
     }
 
-    val labels = remember { loadLabels(context) }
 
     when {
         cameraPermissionState.status.isGranted -> {
