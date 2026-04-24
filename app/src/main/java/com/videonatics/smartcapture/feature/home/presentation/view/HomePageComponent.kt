@@ -204,13 +204,19 @@ fun CommonFailuresSection(failures: List<CommonFailureModel>) {
 }
 
 @Composable
-fun ActiveTasksSection(tasks: List<DashboardActiveTaskModel>) {
+fun ActiveTasksSection(
+    tasks: List<DashboardActiveTaskModel>,
+    onTaskClick: (String) -> Unit = {}
+) {
     Column {
         Text("ACTIVE TASKS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, color = Color.Gray)
         Spacer(Modifier.height(8.dp))
         tasks.forEach { task ->
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clickable { onTaskClick(task.id) },
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

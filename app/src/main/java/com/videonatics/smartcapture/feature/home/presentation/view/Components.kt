@@ -5,13 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,32 +31,51 @@ import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskView
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun DashboardScreen(sharedViewModel: SharedCoreViewModel) {
+fun DashboardScreen(
+    sharedViewModel: SharedCoreViewModel,
+    onTaskOpen: (String) -> Unit = {}
+) {
     if (LocalInspectionMode.current) {
         DashboardContent(
             data = fakeDashboardData,
-            isLoading = false
+            isLoading = false,
+            onTaskOpen = onTaskOpen
         )
     } else {
-        DashboardScreenWithViewModel(sharedViewModel = sharedViewModel)
+        DashboardScreenWithViewModel(
+            sharedViewModel = sharedViewModel,
+            onTaskOpen = onTaskOpen
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardScreenWithViewModel(
     viewModel: HomeViewModel = hiltViewModel(),
-    sharedViewModel: SharedCoreViewModel
+    sharedViewModel: SharedCoreViewModel,
+    onTaskOpen: (String) -> Unit
 ) {
     val dashboardData by viewModel.dashboardData.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val selectedWindow by viewModel.selectedWindow.collectAsState()
 
-    DashboardContent(
-        data = dashboardData,
-        isLoading = isLoading,
-        selectedWindow = selectedWindow,
-        onWindowSelected = { viewModel.loadDashboardData(it, sharedViewModel) }
-    )
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        state = pullToRefreshState,
+        onRefresh = { viewModel.loadDashboardData(selectedWindow, sharedViewModel) },
+        modifier = Modifier.fillMaxSize()
+    ) {
+        DashboardContent(
+            data = dashboardData,
+            isLoading = isLoading,
+            selectedWindow = selectedWindow,
+            onWindowSelected = { viewModel.loadDashboardData(it, sharedViewModel) },
+            onTaskOpen = onTaskOpen
+        )
+    }
 }
 
 @Composable
@@ -65,12 +83,13 @@ fun DashboardContent(
     data: DashboardModel?,
     isLoading: Boolean,
     selectedWindow: String = "7d",
-    onWindowSelected: (String) -> Unit = {}
+    onWindowSelected: (String) -> Unit = {},
+    onTaskOpen: (String) -> Unit = {}
 ) {
     Box(modifier = Modifier
         .fillMaxSize()
         .padding(16.dp)) {
-        if (isLoading) {
+        if (isLoading && data == null) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         } else if (data != null) {
             LazyColumn(
@@ -98,7 +117,12 @@ fun DashboardContent(
 
                 item { CommonFailuresSection(data.commonFailures) }
 
-                item { ActiveTasksSection(data.activeTasks) }
+                item { 
+                    ActiveTasksSection(
+                        tasks = data.activeTasks,
+                        onTaskClick = onTaskOpen
+                    ) 
+                }
             }
         } else {
             Text(
@@ -124,6 +148,7 @@ fun MyTaskScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MyTaskScreenWithViewModel(
     viewModel: TaskViewModel = hiltViewModel(),
@@ -132,11 +157,20 @@ private fun MyTaskScreenWithViewModel(
     val myTasks by viewModel.myTasks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    MyTaskContent(
-        myTasks = myTasks,
-        isLoading = isLoading,
-        onTaskOpen = onTaskOpen
-    )
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        state = pullToRefreshState,
+        onRefresh = { viewModel.loadMyTasks() },
+        modifier = Modifier.fillMaxSize()
+    ) {
+        MyTaskContent(
+            myTasks = myTasks,
+            isLoading = isLoading,
+            onTaskOpen = onTaskOpen
+        )
+    }
 }
 
 @Composable
@@ -149,15 +183,15 @@ fun MyTaskContent(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isLoading) {
+        if (isLoading && myTasks.isEmpty()) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         } else {
             if(myTasks.isEmpty()){
                 Box(
-                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
-
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("No task assigned yet!", modifier = Modifier.align(Alignment.Center))
+                    Text("No task assigned yet!")
                 }
             }else{
                 if (isLandscape) {
@@ -200,7 +234,6 @@ fun MyTaskContent(
                     }
                 }
             }
-
         }
     }
 }

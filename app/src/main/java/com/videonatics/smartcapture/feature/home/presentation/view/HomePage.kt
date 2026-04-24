@@ -211,7 +211,7 @@ fun HomeNavHost(
         startDestination = HomeTab.Dashboard.route,
         modifier = modifier
     ) {
-        composable(HomeTab.Dashboard.route) { DashboardScreen(sharedViewModel = sharedViewModel) }
+        composable(HomeTab.Dashboard.route) { DashboardScreen(sharedViewModel = sharedViewModel, onTaskOpen = onTaskOpen) }
         composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
         composable(HomeTab.Settings.route) { 
             SettingsPage(navController = rootNavController)
