@@ -217,7 +217,7 @@ fun HomeNavHost(
             SettingsPage(navController = rootNavController)
         }
     }
-}
+} //
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
