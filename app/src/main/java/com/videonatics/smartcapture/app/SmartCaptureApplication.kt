@@ -6,7 +6,7 @@ import dagger.hilt.android.HiltAndroidApp
 import org.opencv.android.OpenCVLoader
 
 @HiltAndroidApp
-class SmartCaptureApplication : Application() {
+class SmartCaptureApplication : Application() {//
     override fun onCreate() {
         super.onCreate()
         if (OpenCVLoader.initLocal()) {
