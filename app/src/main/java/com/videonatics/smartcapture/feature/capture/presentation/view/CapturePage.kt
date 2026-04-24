@@ -71,7 +71,6 @@ fun CapturePage(
     val isCapturable by viewModel.isCapturable.collectAsState(false)
     val captureTrigger by viewModel.captureTrigger.collectAsState(false)
 
-    // 🔥 Model + GPU (async loading)
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
     var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
 

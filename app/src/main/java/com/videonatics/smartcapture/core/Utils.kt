@@ -510,7 +510,7 @@ fun ByteBuffer.toByteArray(): ByteArray {
 }
 
 fun loadFatBoxModel(context: Context): Interpreter {
-    val file = context.assets.openFd("model2.tflite")
+    val file = context.assets.openFd("box_classifier.tflite")
     val input = FileInputStream(file.fileDescriptor)
     val channel = input.channel
 

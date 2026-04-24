@@ -67,7 +67,9 @@ fun DashboardContent(
     selectedWindow: String = "7d",
     onWindowSelected: (String) -> Unit = {}
 ) {
-    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         } else if (data != null) {
@@ -150,45 +152,55 @@ fun MyTaskContent(
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         } else {
-            if (isLandscape) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(8.dp)
+            if(myTasks.isEmpty()){
+                Box(
+                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
+
                 ) {
-                    items(myTasks) { task ->
-                        val mappedTask = Task(
-                            id = task.id,
-                            title = task.assetId,
-                            name = task.title,
-                            location = task.location ?: "",
-                            status = mapStatus(task.status)
-                        )
-                        TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
-                    }
+                    Text("No task assigned yet!", modifier = Modifier.align(Alignment.Center))
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background)
-                ) {
-                    items(myTasks) { task ->
-                        val mappedTask = Task(
-                            id = task.id,
-                            title = task.assetId,
-                            name = task.title,
-                            location = task.location ?: "",
-                            status = mapStatus(task.status)
-                        )
-                        TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
+            }else{
+                if (isLandscape) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(8.dp)
+                    ) {
+                        items(myTasks) { task ->
+                            val mappedTask = Task(
+                                id = task.id,
+                                title = task.assetId,
+                                name = task.title,
+                                location = task.location ?: "",
+                                status = mapStatus(task.status)
+                            )
+                            TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        items(myTasks) { task ->
+                            val mappedTask = Task(
+                                id = task.id,
+                                title = task.assetId,
+                                name = task.title,
+                                location = task.location ?: "",
+                                status = mapStatus(task.status)
+                            )
+                            TaskItem(mappedTask, onTaskOpen = { onTaskOpen(task.id) })
+                        }
                     }
                 }
             }
+
         }
     }
 }
