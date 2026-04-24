@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.core.Pref
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,11 +15,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    private val pref: Pref
 ) : ViewModel() {
 
-    var email by mutableStateOf("")
-    var password by mutableStateOf("")
+    var email by mutableStateOf(pref.lastEmail)
+    var password by mutableStateOf(pref.lastPassword)
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 
@@ -43,6 +45,9 @@ class AuthViewModel @Inject constructor(
             
             result.onSuccess { response ->
                 if (response.success) {
+                    // Store credentials on successful login
+                    pref.lastEmail = email
+                    pref.lastPassword = password
                     _loginSuccess.emit(true)
                 } else {
                     error = "Login failed"
