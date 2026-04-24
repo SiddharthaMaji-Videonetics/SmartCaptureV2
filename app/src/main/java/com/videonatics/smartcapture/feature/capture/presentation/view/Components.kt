@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
@@ -176,7 +177,7 @@ fun CameraPreviewWithImageProxy(
 @Composable
 fun BoundingBoxOverlay(
     boxes: List<Detection>,
-    focusedObj: RectF? = null,
+    focusedObj: Detection? = null,
     imageWidth: Float,
     imageHeight: Float,
     modifier: Modifier = Modifier,
@@ -191,7 +192,7 @@ fun BoundingBoxOverlay(
 
         onCanvasSizeChanged(viewW, viewH)
 
-        // IMPORTANT: FILL_CENTER uses max scale
+        // FILL_CENTER scaling
         val scale = maxOf(viewW / imageWidth, viewH / imageHeight)
 
         val scaledW = imageWidth * scale
@@ -201,38 +202,32 @@ fun BoundingBoxOverlay(
         val dy = (viewH - scaledH) / 2f
 
         boxes.forEach { b ->
-            val rect = b.rect
-            val detectionObjColor = if(b.rect == focusedObj) Color.Yellow else boxColor
-            val stroke = if(b.rect == focusedObj) 2 * strokeWidth else strokeWidth
-            
-            val isNormalized = rect.right <= 1f
 
-            val leftSrc = if (isNormalized) rect.left * imageWidth else rect.left
-            val topSrc = if (isNormalized) rect.top * imageHeight else rect.top
-            val rightSrc = if (isNormalized) rect.right * imageWidth else rect.right
-            val bottomSrc = if (isNormalized) rect.bottom * imageHeight else rect.bottom
+            val color = if (b == focusedObj) Color.Yellow else boxColor
+            val stroke = if (b == focusedObj) 2 * strokeWidth else strokeWidth
 
-            val left = leftSrc * scale + dx
-            val top = topSrc * scale + dy
-            val right = rightSrc * scale + dx
-            val bottom = bottomSrc * scale + dy
-            
-            val width = right - left
-            val height = bottom - top
-            val centerX = left + width / 2f
-            val centerY = top + height / 2f
+            val path = Path()
 
-            withTransform({
-                // Convert angle from radians (typically YOLO OBB) to degrees for Compose
-                rotate(degrees = Math.toDegrees(b.angle.toDouble()).toFloat(), pivot = Offset(centerX, centerY))
-            }) {
-                drawRect(
-                    color = detectionObjColor,
-                    topLeft = Offset(left, top),
-                    size = Size(width, height),
-                    style = Stroke(width = stroke)
-                )
+            b.corners.forEachIndexed { index, pt ->
+
+                // Transform to canvas space
+                val x = pt.x * scale + dx
+                val y = pt.y * scale + dy
+
+                if (index == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
             }
+
+            path.close()
+
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(width = stroke)
+            )
         }
     }
 }

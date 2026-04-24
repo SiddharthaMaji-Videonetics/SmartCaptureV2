@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Matrix
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.YuvImage
 import androidx.camera.core.ImageProxy
@@ -155,38 +156,129 @@ fun preprocess(
 }
 
 fun parseOutput(
-    output: Array<Array<FloatArray>>,
+    output: Array<Array<FloatArray>>, // (1, 6, N)
     ratio: Float,
     dx: Float,
     dy: Float,
-    confThreshold: Float = 0.25f,
+    confThreshold: Float = 0.18f,
+    iouThreshold: Float = 0.35f,
     imgSize: Int = 416
 ): List<Detection> {
+
     val detections = mutableListOf<Detection>()
-    // Output is (1, 6, 3549). We received it as Array(1) { Array(6) { FloatArray(3549) } }
-    // but the input in the call was Array(1) { Array(3549) { FloatArray(9) } } - which was wrong.
-    // Let's assume output is [6][3549] for simplicity in implementation.
-    
-    val numAnchors = output[0][0].size // 3549
-    
+    val numAnchors = output[0][0].size
+
+    val minSize = 20f
+    val edgeMargin = 5f
+
     for (i in 0 until numAnchors) {
+
+        val conf = output[0][4][i]
+        if (conf < confThreshold) continue
+
+        // De-normalize
         val xc = output[0][0][i] * imgSize
         val yc = output[0][1][i] * imgSize
         val w = output[0][2][i] * imgSize
         val h = output[0][3][i] * imgSize
-        val conf = output[0][4][i]
         val angle = output[0][5][i]
 
-        if (conf < confThreshold) continue
+        // --- 🔥 Noise Filters ---
 
-        val x1 = ((xc - w / 2f) - dx) / ratio
-        val y1 = ((yc - h / 2f) - dy) / ratio
-        val x2 = ((xc + w / 2f) - dx) / ratio
-        val y2 = ((yc + h / 2f) - dy) / ratio
+        // 1. Size filter
+        if (w < minSize || h < minSize) continue
 
-        detections.add(Detection(RectF(x1, y1, x2, y2), conf, 0, angle = angle))
+        // 2. Aspect ratio filter
+        val aspect = w / h
+        if (aspect < 0.3f || aspect > 3.0f) continue
+
+        // 3. Edge filter
+        if (xc < edgeMargin || yc < edgeMargin ||
+            xc > imgSize - edgeMargin || yc > imgSize - edgeMargin
+        ) continue
+
+        // --- Convert to original image space ---
+        val xcO = (xc - dx) / ratio
+        val ycO = (yc - dy) / ratio
+        val wO = w / ratio
+        val hO = h / ratio
+
+        // --- OBB corners ---
+        val corners = obbToCorners(xcO, ycO, wO, hO, angle)
+
+        detections.add(
+            Detection(
+                corners = corners,
+                score = conf,
+                classId = 0,
+                angle = angle
+            )
+        )
     }
-    return detections
+
+    // --- NMS ---
+    val finalDetections = nms(detections, iouThreshold)
+
+    // --- Keep top-K (extra noise control) ---
+    return finalDetections
+        .sortedByDescending { it.score }
+        .take(10)
+}
+
+
+
+
+fun cornersToRect(corners: List<PointF>): RectF {
+    var minX = Float.MAX_VALUE
+    var minY = Float.MAX_VALUE
+    var maxX = Float.MIN_VALUE
+    var maxY = Float.MIN_VALUE
+
+    for (p in corners) {
+        if (p.x < minX) minX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.x > maxX) maxX = p.x
+        if (p.y > maxY) maxY = p.y
+    }
+
+    return RectF(minX, minY, maxX, maxY)
+}
+
+fun nms(
+    detections: List<Detection>,
+    iouThreshold: Float,
+    maxDet: Int = 300
+): List<Detection> {
+
+    if (detections.isEmpty()) return emptyList()
+
+    val sorted = detections.sortedByDescending { it.score }.toMutableList()
+    val result = mutableListOf<Detection>()
+
+    val rectCache = sorted.map { cornersToRect(it.corners) }
+
+    while (sorted.isNotEmpty() && result.size < maxDet) {
+
+        val best = sorted.removeAt(0)
+        val bestRect = cornersToRect(best.corners)
+
+        result.add(best)
+
+        val iterator = sorted.listIterator()
+        var index = 0
+
+        while (iterator.hasNext()) {
+            val other = iterator.next()
+
+            val overlap = iou(bestRect, rectCache[index + 1])
+            if (overlap > iouThreshold) {
+                iterator.remove()
+            }
+            index++
+        }
+    }
+
+    return result
 }
 
 fun iou(a: RectF, b: RectF): Float {
@@ -196,37 +288,62 @@ fun iou(a: RectF, b: RectF): Float {
     val bottom = minOf(a.bottom, b.bottom)
 
     val inter = maxOf(0f, right - left) * maxOf(0f, bottom - top)
-    if (inter <= 0f) return 0f
+    val union = a.width() * a.height() + b.width() * b.height() - inter
 
-    val areaA = (a.right - a.left) * (a.bottom - a.top)
-    val areaB = (b.right - b.left) * (b.bottom - b.top)
-
-    return inter / (areaA + areaB - inter)
+    return if (union > 0) inter / union else 0f
 }
+fun obbToCorners(
+    xc: Float,
+    yc: Float,
+    w: Float,
+    h: Float,
+    angle: Float
+): List<PointF> {
 
-fun nmsPerClass(
-    detections: List<Detection>,
-    iouThreshold: Float = 0.45f
-): List<Detection> {
-    val result = mutableListOf<Detection>()
-    val grouped = detections.groupBy { it.classId }
+    val cosA = kotlin.math.cos(angle)
+    val sinA = kotlin.math.sin(angle)
 
-    for ((_, dets) in grouped) {
-        val sorted = dets.sortedByDescending { it.score }.toMutableList()
-        while (sorted.isNotEmpty()) {
-            val best = sorted.removeAt(0)
-            result.add(best)
-            val it = sorted.iterator()
-            while (it.hasNext()) {
-                if (iou(best.rect, it.next().rect) > iouThreshold) {
-                    it.remove()
-                }
-            }
-        }
+    val hw = w / 2f
+    val hh = h / 2f
+
+    val pts = arrayOf(
+        floatArrayOf(-hw, -hh),
+        floatArrayOf(hw, -hh),
+        floatArrayOf(hw, hh),
+        floatArrayOf(-hw, hh)
+    )
+
+    val result = ArrayList<PointF>(4)
+
+    for (p in pts) {
+        val x = p[0] * cosA - p[1] * sinA + xc
+        val y = p[0] * sinA + p[1] * cosA + yc
+        result.add(PointF(x, y))
     }
+
     return result
 }
 
+fun loadLabels(context: Context): List<String> {
+    return context.assets.open("labels.txt")
+        .bufferedReader()
+        .readLines()
+}
+
+fun rotateRect(
+    rect: RectF,
+    imageWidth: Float,
+    imageHeight: Float,
+    rotationDegrees: Int
+): RectF {
+    return when (rotationDegrees) {
+        0 -> rect
+        90 -> RectF(rect.top, imageWidth - rect.right, rect.bottom, imageWidth - rect.left)
+        180 -> RectF(imageWidth - rect.right, imageHeight - rect.bottom, imageWidth - rect.left, imageHeight - rect.top)
+        270 -> RectF(imageHeight - rect.bottom, rect.left, imageHeight - rect.top, rect.right)
+        else -> rect
+    }
+}
 
 fun getDragMode(rect: Rect, touch: Offset, threshold: Float): DragMode {
     val nearLeft = abs(touch.x - rect.left) <= threshold
@@ -329,65 +446,167 @@ fun Rect.toImageRect(
     )
 }
 
+fun Detection.toRect(): RectF {
+    var minX = Float.MAX_VALUE
+    var minY = Float.MAX_VALUE
+    var maxX = Float.MIN_VALUE
+    var maxY = Float.MIN_VALUE
+
+    for (p in corners) {
+        if (p.x < minX) minX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.x > maxX) maxX = p.x
+        if (p.y > maxY) maxY = p.y
+    }
+
+    return RectF(minX, minY, maxX, maxY)
+}
+
 fun mergeToFittedBoxes(
     detections: List<Detection>,
     margin: Float = 5f
 ): List<Detection> {
+
     val remaining = detections.toMutableList()
     val result = mutableListOf<Detection>()
 
+    fun toRect(corners: List<PointF>): RectF {
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var maxY = Float.MIN_VALUE
+
+        for (p in corners) {
+            if (p.x < minX) minX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.x > maxX) maxX = p.x
+            if (p.y > maxY) maxY = p.y
+        }
+        return RectF(minX, minY, maxX, maxY)
+    }
+
     fun isClose(a: RectF, b: RectF): Boolean {
-        val expanded = RectF(a.left - margin, a.top - margin, a.right + margin, a.bottom + margin)
+        val expanded = RectF(
+            a.left - margin,
+            a.top - margin,
+            a.right + margin,
+            a.bottom + margin
+        )
         return RectF.intersects(expanded, b)
     }
 
     while (remaining.isNotEmpty()) {
+
         val seed = remaining.removeAt(0)
-        var minLeft = seed.rect.left
-        var minTop = seed.rect.top
-        var maxRight = seed.rect.right
-        var maxBottom = seed.rect.bottom
+
+        var mergedRect = toRect(seed.corners)
+
         var bestScore = seed.score
-        var bestColor = seed.rectColor
+        var bestColor = seed.color
         var bestAngle = seed.angle
+        var bestCorners = seed.corners
+
         var changed: Boolean
 
         do {
             changed = false
             val iterator = remaining.iterator()
+
             while (iterator.hasNext()) {
                 val other = iterator.next()
                 if (other.classId != seed.classId) continue
-                val currentRect = RectF(minLeft, minTop, maxRight, maxBottom)
-                if (isClose(currentRect, other.rect)) {
-                    minLeft = minOf(minLeft, other.rect.left)
-                    minTop = minOf(minTop, other.rect.top)
-                    maxRight = maxOf(maxRight, other.rect.right)
-                    maxBottom = maxOf(maxBottom, other.rect.bottom)
+
+                val otherRect = toRect(other.corners)
+
+                if (isClose(mergedRect, otherRect)) {
+
+                    // Expand merged rect
+                    mergedRect = RectF(
+                        minOf(mergedRect.left, otherRect.left),
+                        minOf(mergedRect.top, otherRect.top),
+                        maxOf(mergedRect.right, otherRect.right),
+                        maxOf(mergedRect.bottom, otherRect.bottom)
+                    )
+
+                    // Keep best scoring detection (for angle + corners)
                     if (other.score > bestScore) {
                         bestScore = other.score
-                        bestColor = other.rectColor
+                        bestColor = other.color
                         bestAngle = other.angle
+                        bestCorners = other.corners
                     }
+
                     iterator.remove()
                     changed = true
                 }
             }
+
         } while (changed)
 
-        result.add(Detection(RectF(minLeft, minTop, maxRight, maxBottom), bestScore, seed.classId, bestColor, bestAngle))
+        // Final detection: keep best OBB but merged score/color
+        result.add(
+            Detection(
+                corners = bestCorners,
+                score = bestScore,
+                classId = seed.classId,
+                angle = bestAngle,
+                color = bestColor
+            )
+        )
     }
+
     return result
 }
 
-fun findBestBox(detections: List<Detection>, focusBox: RectF): Detection? {
+fun findBestBox(
+    detections: List<Detection>,
+    focusBox: RectF
+): Detection? {
+
+    fun toRect(corners: List<PointF>): RectF {
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var maxY = Float.MIN_VALUE
+
+        for (p in corners) {
+            if (p.x < minX) minX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.x > maxX) maxX = p.x
+            if (p.y > maxY) maxY = p.y
+        }
+
+        return RectF(minX, minY, maxX, maxY)
+    }
+
+    fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        return kotlin.math.hypot(x1 - x2, y1 - y2)
+    }
+
     return detections.maxByOrNull { det ->
-        val intersection = RectF().apply { setIntersect(det.rect, focusBox) }
-        val overlapArea = intersection.width() * intersection.height()
-        val detArea = det.rect.width() * det.rect.height()
+
+        val rect = toRect(det.corners)
+
+        val intersection = RectF()
+        val hasIntersection = intersection.setIntersect(rect, focusBox)
+
+        val overlapArea = if (hasIntersection) {
+            intersection.width() * intersection.height()
+        } else 0f
+
+        val detArea = rect.width() * rect.height()
+
         val overlapRatio = if (detArea > 0) overlapArea / detArea else 0f
-        val centerDist = distance(det.rect.centerX(), det.rect.centerY(), focusBox.centerX(), focusBox.centerY())
-        overlapRatio * 2 - centerDist * 0.001f
+
+        val centerDist = distance(
+            rect.centerX(),
+            rect.centerY(),
+            focusBox.centerX(),
+            focusBox.centerY()
+        )
+
+        // Same scoring logic as yours
+        overlapRatio * 2f - centerDist * 0.001f
     }
 }
 
@@ -413,28 +632,87 @@ fun getDistanceHint(areaRatio: Float): String {
     }
 }
 
-fun generateInstruction(best: Detection, focusBox: RectF): String {
-    val dx = best.rect.centerX() - focusBox.centerX()
-    val dy = best.rect.centerY() - focusBox.centerY()
+fun generateInstruction(
+    best: Detection,
+    focusBox: RectF
+): String {
+
+    fun toRect(corners: List<PointF>): RectF {
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var maxY = Float.MIN_VALUE
+
+        for (p in corners) {
+            if (p.x < minX) minX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.x > maxX) maxX = p.x
+            if (p.y > maxY) maxY = p.y
+        }
+
+        return RectF(minX, minY, maxX, maxY)
+    }
+
+    val rect = toRect(best.corners)
+
+    val dx = rect.centerX() - focusBox.centerX()
+    val dy = rect.centerY() - focusBox.centerY()
+
     val direction = getDirection(dx, dy, threshold = 20f)
-    val areaRatio = (best.rect.width() * best.rect.height()) / (focusBox.width() * focusBox.height())
+
+    val areaRatio =
+        (rect.width() * rect.height()) /
+                (focusBox.width() * focusBox.height())
+
     val distance = getDistanceHint(areaRatio)
 
     return when {
-        direction == "Centered" && distance == "Good Distance" -> "Perfect Alignment ✅"
+        direction == "Centered" && distance == "Good Distance" -> "Perfect Alignment"
         direction == "Centered" -> distance
         else -> "$direction + $distance"
     }
 }
 
-fun generateAlignmentVector(best: Detection, focusBox: RectF): AlignmentVector {
-    val dx = best.rect.centerX() - focusBox.centerX()
-    val dy = best.rect.centerY() - focusBox.centerY()
+fun generateAlignmentVector(
+    best: Detection,
+    focusBox: RectF
+): AlignmentVector {
+
+    fun toRect(corners: List<PointF>): RectF {
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var maxY = Float.MIN_VALUE
+
+        for (p in corners) {
+            if (p.x < minX) minX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.x > maxX) maxX = p.x
+            if (p.y > maxY) maxY = p.y
+        }
+
+        return RectF(minX, minY, maxX, maxY)
+    }
+
+    val rect = toRect(best.corners)
+
+    val dx = rect.centerX() - focusBox.centerX()
+    val dy = rect.centerY() - focusBox.centerY()
+
     val h = dx / focusBox.width()
     val v = dy / focusBox.height()
-    val areaRatio = (best.rect.width() * best.rect.height()) / (focusBox.width() * focusBox.height())
-    val z = Math.log(areaRatio.toDouble()).toFloat()
-    return AlignmentVector(h = h, v = v, z = z)
+
+    val areaRatio =
+        (rect.width() * rect.height()) /
+                (focusBox.width() * focusBox.height())
+
+    val z = kotlin.math.ln(areaRatio)   // same as log()
+
+    return AlignmentVector(
+        h = h,
+        v = v,
+        z = z
+    )
 }
 
 fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
@@ -474,7 +752,7 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     } ?: throw RuntimeException("Failed to decode bitmap")
 
     val rotationDegrees = image.imageInfo.rotationDegrees
-    return if (rotationDegrees != 0) {
+    return if (rotationDegrees != 0 && bitmap.width > 0 && bitmap.height > 0) {
         val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
         Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     } else {
@@ -509,4 +787,84 @@ fun loadFatBoxLabels(context: Context): List<String> {
     return context.assets.open("fatbox_classes.txt")
         .bufferedReader()
         .readLines()
+}
+
+fun List<RectF>.filterInside(focus: RectF): List<RectF> {
+    return filter { RectF.intersects(it, focus) }
+}
+
+fun mapRectToBitmapSpaceWithLetterbox(
+    rect: RectF,              // model output (input size space)
+    inputSize: Int,           // e.g. 416 or 640
+    bitmap: Bitmap
+): RectF {
+
+    val bw = bitmap.width.toFloat()
+    val bh = bitmap.height.toFloat()
+
+    // 1. Compute scale used during resize (FIT)
+    val scale = minOf(inputSize / bw, inputSize / bh)
+
+    val scaledW = bw * scale
+    val scaledH = bh * scale
+
+    // 2. Compute padding (letterbox)
+    val dx = (inputSize - scaledW) / 2f
+    val dy = (inputSize - scaledH) / 2f
+
+    // 3. Remove padding from rect
+    val left = (rect.left - dx) / scale
+    val top = (rect.top - dy) / scale
+    val right = (rect.right - dx) / scale
+    val bottom = (rect.bottom - dy) / scale
+
+    return RectF(left, top, right, bottom)
+}
+
+fun cropBitmap(bitmap: Bitmap, rect: RectF): Bitmap {
+    if (bitmap.width <= 0 || bitmap.height <= 0) return bitmap
+
+    val x = rect.left.toInt().coerceIn(0, bitmap.width - 1)
+    val y = rect.top.toInt().coerceIn(0, bitmap.height - 1)
+    val width = rect.width().toInt().coerceIn(1, bitmap.width - x)
+    val height = rect.height().toInt().coerceIn(1, bitmap.height - y)
+
+    return Bitmap.createBitmap(bitmap, x, y, width, height)
+}
+
+fun cropBitmapFromNormalizedRect(
+    bitmap: Bitmap,
+    normalizedRect: RectF
+): Bitmap? {
+
+    // 1. Fix inverted rect (very important)
+    val leftN = minOf(normalizedRect.left, normalizedRect.right)
+    val rightN = maxOf(normalizedRect.left, normalizedRect.right)
+    val topN = minOf(normalizedRect.top, normalizedRect.bottom)
+    val bottomN = maxOf(normalizedRect.top, normalizedRect.bottom)
+
+    // 2. Clamp to [0,1]
+    val left = leftN.coerceIn(0f, 1f)
+    val top = topN.coerceIn(0f, 1f)
+    val right = rightN.coerceIn(0f, 1f)
+    val bottom = bottomN.coerceIn(0f, 1f)
+
+    // 3. Convert to pixel space
+    val x = (left * bitmap.width).toInt()
+    val y = (top * bitmap.height).toInt()
+    val w = ((right - left) * bitmap.width).toInt()
+    val h = ((bottom - top) * bitmap.height).toInt()
+
+    // 4. Reject invalid crops
+    if (w <= 1 || h <= 1) {
+        return null // <-- THIS is likely happening in your case
+    }
+
+    // 5. Clamp safely
+    val safeW = (x + w).coerceAtMost(bitmap.width) - x
+    val safeH = (y + h).coerceAtMost(bitmap.height) - y
+
+    if (safeW <= 0 || safeH <= 0) return null
+
+    return Bitmap.createBitmap(bitmap, x, y, safeW, safeH)
 }

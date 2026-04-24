@@ -33,8 +33,8 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     private var _inst = MutableStateFlow<AlignmentVector?>(null)
     val inst: Flow<AlignmentVector?> = _inst
 
-    private var _focusedObj = MutableStateFlow<RectF?>(null)
-    val focusedObj : Flow<RectF?> = _focusedObj
+    private var _focusedObj = MutableStateFlow<Detection?>(null)
+    val focusedObj : Flow<Detection?> = _focusedObj
 
     private var _isCapturable = MutableStateFlow<Boolean>(false)
     var isCapturable = _isCapturable
@@ -54,35 +54,58 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     }
 
     private fun calculateObjectInsideFocusBoxCount() {
-        if(_focusBox == null) return
-        if(_detectionList.isEmpty()) return
 
-        Log.e("box1", _focusBox.toString())
-        Log.e("box2", _detectionList.map { it.rect }.toString())
+        val focus = _focusBox ?: return
+        if (_detectionList.isEmpty()) return
 
-        val destDetection = findBestBox(_detectionList,_focusBox!!)
-        destDetection?.apply {
-            _focusedObj.value = destDetection.rect
-            val inst = generateInstruction(destDetection,_focusBox!!)
+        // --- Helper: corners → RectF ---
+        fun Detection.toRect(): RectF {
+            var minX = Float.MAX_VALUE
+            var minY = Float.MAX_VALUE
+            var maxX = Float.MIN_VALUE
+            var maxY = Float.MIN_VALUE
 
-            val hint = generateAlignmentVector(destDetection, _focusBox!!)
-
-            if(hint.z <=0 && hint.z >=-1.5 && (hint.h >=-0.02 && hint.h <= 0.02) && (hint.v >=-0.02 && hint.v <= 0.02)){
-                _isCapturable.value = true
-            }else{
-                _isCapturable.value = false
+            for (p in corners) {
+                if (p.x < minX) minX = p.x
+                if (p.y < minY) minY = p.y
+                if (p.x > maxX) maxX = p.x
+                if (p.y > maxY) maxY = p.y
             }
-            _inst.value = hint
-            Log.e("instruction", inst+"($hint)")
+            return RectF(minX, minY, maxX, maxY)
         }
 
+        Log.e("box1", focus.toString())
+        Log.e("box2", _detectionList.map { it.toRect() }.toString())
 
-        val insideRects = _detectionList.map { it.rect.toRect() }.filterInside(_focusBox?.toRect()!!)
+        // --- Best detection ---
+        val best = findBestBox(_detectionList, focus)
 
+        best?.let { det ->
+
+            // 🔥 FIX: store Detection, NOT rect
+            _focusedObj.value = det
+
+            val inst = generateInstruction(det, focus)
+            val hint = generateAlignmentVector(det, focus)
+
+            _isCapturable.value =
+                hint.z in -1.5f..0f &&
+                        hint.h in -0.02f..0.02f &&
+                        hint.v in -0.02f..0.02f
+
+            _inst.value = hint
+
+            Log.e("instruction", "$inst ($hint)")
+        }
+
+        // --- Count objects inside focus box ---
+        val insideRects = _detectionList
+            .map { it.toRect() }
+            .filterInside(focus)
 
         _objectInsideFocusBoxCount.tryEmit(insideRects.size)
-            Log.e("boxInBox", insideRects.size.toString())
 
+        Log.e("boxInBox", insideRects.size.toString())
     }
 
     fun setFocusBox(rect: RectF){

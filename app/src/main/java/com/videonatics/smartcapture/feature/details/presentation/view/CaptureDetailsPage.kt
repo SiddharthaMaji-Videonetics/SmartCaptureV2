@@ -2,13 +2,14 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,22 +17,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -46,8 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,10 +48,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.videonatics.smartcapture.core.loadFatBoxLabels
-import com.videonatics.smartcapture.core.loadFatBoxModel
+import com.videonatics.smartcapture.core.cropBitmapFromNormalizedRect
+import com.videonatics.smartcapture.core.mapRectToBitmapSpaceWithLetterbox
+import com.videonatics.smartcapture.core.mapToCanvas
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.toImageRect
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
 import com.videonatics.smartcapture.feature.details.data.model.ImageQualityResult
 import com.videonatics.smartcapture.feature.details.presentation.viewmodel.CaptureDetailsViewModel
@@ -172,95 +167,112 @@ fun ImageAnalysisPageComponent(
     Scaffold(
         bottomBar = {
             BottomAppBar(
-                modifier = Modifier.height(if (isUploading) 100.dp else 80.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    if (isUploading) {
-                        Text(
-                            text = "Uploading... ${(uploadProgress * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        LinearProgressIndicator(
-                            progress = { uploadProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-                    } else {
-                        Button(
-                            onClick = onUploadClick,
-                            enabled = isUploadEnabled,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Upload")
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        if (isUploading) {
+                            Text(
+                                text = "Uploading... ${(uploadProgress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            LinearProgressIndicator(
+                                progress = { uploadProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            )
+                        } else {
+                            Button(
+                                onClick = onUploadClick,
+                                enabled = isUploadEnabled,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Upload")
+                            }
                         }
                     }
                 }
             }
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Image Preview Area
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(Color.Black)
-            ) {
-                if (capturedImage != null && capturedImageBoundingBox != null) {
-                    ZoomableImageWithBoundingBox(
-                        bitmap = capturedImage,
-                        rect = capturedImageBoundingBox,
-                        boundedImage = false,
-                        imageWidth = imageWidth,
-                        imageHeight = imageHeight,
-                        modifier = Modifier.fillMaxSize(),
-                        onTransformedImage = { transformedBmp ->
-                            onAnalyze(transformedBmp)
+            item {
+                // Image Preview Area
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp)
+                        .background(Color.Black)
+                ) {
+                    if (capturedImage != null && capturedImageBoundingBox != null) {
+//
+                        val normalizedBoundingBox = mapRectToBitmapSpaceWithLetterbox(
+                            capturedImageBoundingBox,
+                            416,
+                            capturedImage
+
+                        )
+
+                        Log.d("CROP_DEBUG", """
+Rect(normalized): $normalizedBoundingBox
+Bitmap: ${capturedImage.width} x ${capturedImage.height}
+""".trimIndent())
+                        val croppedImage = cropBitmapFromNormalizedRect(
+                            capturedImage,
+                            normalizedBoundingBox
+                        )
+
+
+                        croppedImage?.apply {
+
+                            onAnalyze(croppedImage)
+                            ZoomableImageWithBoundingBox(
+                                bitmap = croppedImage,
+                                rect = normalizedBoundingBox,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
+
+
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .align(Alignment.TopEnd)
+                            .clickable { onClose() }
                     )
                 }
-
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .align(Alignment.TopEnd)
-                        .clickable { onClose() }
-                )
             }
 
-            // Analysis Results Area
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1.2f)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Text(
                         text = "Image Analysis",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
-                }
 
-                item {
                     AnalysisField(
                         label = "Content Type",
                         value = contentType,
@@ -268,11 +280,9 @@ fun ImageAnalysisPageComponent(
                         overrideReason = contentTypeOverrideReason,
                         onOverrideReasonChange = { contentTypeOverrideReason = it }
                     )
-                }
 
-                item { HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f)) }
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
 
-                item {
                     AnalysisField(
                         label = "Image Quality",
                         value = quality,

@@ -44,10 +44,10 @@ import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.mergeToFittedBoxes
-import com.videonatics.smartcapture.core.nmsPerClass
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.toRect
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
@@ -153,7 +153,7 @@ fun CapturePage(
                     viewModel.captureReset()
                     sharedViewModel.saveCapturedImage(bitmap)
                     focusedObj?.apply {
-                        sharedViewModel.saveCapturedImageBoundBox(this)
+                        sharedViewModel.saveCapturedImageBoundBox(this.toRect())
                     }
 
                     navController.navigate("image_details")
@@ -197,7 +197,7 @@ fun CapturePage(
 @Composable
 fun CapturePageComponent(modifier: Modifier = Modifier,
                          interpreter :  Interpreter? = null,
-                         focusedObj: RectF? = null,
+                         focusedObj: Detection? = null,
                          captureTrigger: Boolean = false,
                          inst: AlignmentVector? = null,
                          isCapturable: Boolean = false,
@@ -247,7 +247,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
 
 @Composable
 fun CameraDetectionView(interpreter: Interpreter?,
-                        focusedObj: RectF? = null,
+                        focusedObj: Detection? = null,
                         captureTrigger: Boolean,
                         inst: AlignmentVector?,
                         updateCanvasSize:(Float, Float) -> Unit,
@@ -290,20 +290,21 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
                                 interpreter?.run(prep.buffer, output)
 
-                                val detections = parseOutput(
+                                val finalDetections = parseOutput(
                                     output,
                                     prep.ratio,
                                     prep.dx,
                                     prep.dy,
-                                    confThreshold = 0.10f, // Adjusted for YOLO11 OBB int8
+                                    confThreshold = 0.18f,
+                                    iouThreshold = 0.35f,
                                     imgSize = 416
                                 )
 
-                                val finalDetections = nmsPerClass(detections)
-                                val merged = mergeToFittedBoxes(finalDetections, 5f)
+                                //val finalDetections = nmsPerClass(detections)
+                                //val merged = mergeToFittedBoxes(finalDetections, 5f)
 
-                                detectionList = merged.toList()
-                                onDetectionChanges.invoke(merged)
+                                detectionList = finalDetections.toList()
+                                onDetectionChanges.invoke(finalDetections)
                                 imageWidth = prep.srcWidth.toFloat()
                                 imageHeight = prep.srcHeight.toFloat()
                                 onImageDimensionsCaptured(imageWidth, imageHeight)
@@ -384,7 +385,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
 fun CapturePageComponentPreview() {
     SmartCaptureTheme {
         CapturePageComponent(
-            focusedObj = RectF(100f, 100f, 400f, 400f),
             inst = AlignmentVector(0f, 0f, 0f),
             isCapturable = true
         )
