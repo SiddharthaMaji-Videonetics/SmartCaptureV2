@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.task.presentation.di
 
 import com.videonatics.smartcapture.core.Pref
+import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import com.videonatics.smartcapture.feature.task.data.datasource.remote.TaskRemoteDataSource
 import com.videonatics.smartcapture.feature.task.data.datasource.remote.TaskRemoteDataSourceImpl
 import com.videonatics.smartcapture.feature.task.data.repository.TaskRepositoryImpl
@@ -28,8 +29,9 @@ object TaskModule {
     @Provides
     @Singleton
     fun provideTaskRepository(
-        remoteDataSource: TaskRemoteDataSource
+        remoteDataSource: TaskRemoteDataSource,
+        authRepository: AuthRepository
     ): TaskRepository {
-        return TaskRepositoryImpl(remoteDataSource)
+        return TaskRepositoryImpl(remoteDataSource, authRepository)
     }
 }

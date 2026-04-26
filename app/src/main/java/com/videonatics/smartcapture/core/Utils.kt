@@ -868,3 +868,12 @@ fun cropBitmapFromNormalizedRect(
 
     return Bitmap.createBitmap(bitmap, x, y, safeW, safeH)
 }
+
+fun RectF.toNormalized(imageWidth: Float, imageHeight: Float): RectF {
+    return RectF(
+        this.left / imageWidth,
+        this.top / imageHeight,
+        this.right / imageWidth,
+        this.bottom / imageHeight
+    )
+}

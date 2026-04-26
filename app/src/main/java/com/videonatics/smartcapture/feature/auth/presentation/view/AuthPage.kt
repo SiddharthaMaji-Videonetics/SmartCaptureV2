@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -73,6 +74,11 @@ fun AuthPageComponent(onLoginSuccess: () -> Unit = {},
                 },
                 onLoginClick = {
                     viewModel.login()
+                },
+                onTestAuthClick = {
+                    viewModel.email = "admin@admin.com"
+                    viewModel.password = "admin123"
+                    viewModel.login()
                 }
             )
         }
@@ -88,7 +94,8 @@ fun LoginScreenComponent(
     error: String?,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
-    onLoginClick: () -> Unit
+    onLoginClick: () -> Unit,
+    onTestAuthClick: () -> Unit = {}
 ) {
     val isValid = email.isNotBlank() && password.length >= 6
 
@@ -172,6 +179,14 @@ fun LoginScreenComponent(
                 } else {
                     Text("Login")
                 }
+            }
+
+            OutlinedButton(
+                onClick = onTestAuthClick,
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Test Access")
             }
         }
     }

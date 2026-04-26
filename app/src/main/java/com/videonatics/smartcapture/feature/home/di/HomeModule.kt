@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.home.di
 
 import com.videonatics.smartcapture.core.Pref
+import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import com.videonatics.smartcapture.feature.home.data.datasource.remote.HomeRemoteDataSource
 import com.videonatics.smartcapture.feature.home.data.datasource.remote.HomeRemoteDataSourceImpl
 import com.videonatics.smartcapture.feature.home.data.repository.HomeRepositoryImpl
@@ -28,8 +29,9 @@ object HomeModule {
     @Provides
     @Singleton
     fun provideHomeRepository(
-        remoteDataSource: HomeRemoteDataSource
+        remoteDataSource: HomeRemoteDataSource,
+        authRepository: AuthRepository
     ): HomeRepository {
-        return HomeRepositoryImpl(remoteDataSource)
+        return HomeRepositoryImpl(remoteDataSource, authRepository)
     }
 }

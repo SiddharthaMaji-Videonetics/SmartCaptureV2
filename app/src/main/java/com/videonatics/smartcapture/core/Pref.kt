@@ -17,6 +17,7 @@ class Pref(context: Context) {
         private const val SELECTED_LANGUAGE_CODE = "selected_language_code"
         private const val LAST_EMAIL = "last_email"
         private const val LAST_PASSWORD = "last_password"
+        private const val IS_TEST_USER = "is_test_user"
     }
 
     private val sharedPreferences = context.getSharedPreferences(
@@ -64,4 +65,8 @@ class Pref(context: Context) {
     var lastPassword: String
         get() = sharedPreferences.getString(LAST_PASSWORD, "") ?: ""
         set(value) = sharedPreferences.edit { putString(LAST_PASSWORD, value) }
+
+    var isTestUser: Boolean
+        get() = sharedPreferences.getBoolean(IS_TEST_USER, false)
+        set(value) = sharedPreferences.edit { putBoolean(IS_TEST_USER, value) }
 }

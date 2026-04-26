@@ -1,13 +1,12 @@
 package com.videonatics.smartcapture.core.presentation.viewmodel
 
-
 import android.graphics.Bitmap
 import android.graphics.RectF
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.core.domain.repository.CoreRepository
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
-import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.feature.language.domain.repository.LanguageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -97,6 +96,8 @@ class SharedCoreViewModel @Inject constructor(
     }
 
     fun triggerUnauthorizedLogout() {
+        if (authRepository.isTestUser()) return
+
         viewModelScope.launch {
             authRepository.logout()
             _showSessionExpiredDialog.value = true

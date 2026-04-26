@@ -16,7 +16,7 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun login(email: String, password: String): Result<LoginResponse> {
         // Fake login for testing
         if (email == "admin@admin.com" && password == "admin123") {
-            delay(2000)
+            delay(1000)
             val fakeResponse = LoginResponse(
                 success = true,
                 data = LoginData(
@@ -31,12 +31,14 @@ class AuthRepositoryImpl @Inject constructor(
                     )
                 )
             )
+            pref.isTestUser = true
             saveUserData(fakeResponse.data)
             return Result.success(fakeResponse)
         }
 
         val result = remote.login(email, password)
         result.onSuccess {
+            pref.isTestUser = false
             saveUserData(it.data)
         }
         return result
@@ -60,9 +62,14 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun logout() {
         pref.isLoggedInPref = false
+        pref.isTestUser = false
         pref.accessToken = null
         pref.userName = ""
         pref.userEmail = ""
         pref.userType = ""
+    }
+
+    override fun isTestUser(): Boolean {
+        return pref.isTestUser
     }
 }

@@ -7,4 +7,5 @@ interface AuthRepository {
     suspend fun setLoggedIn(isLogged: Boolean)
     suspend fun getLoggedIn(): Boolean
     suspend fun logout()
+    fun isTestUser(): Boolean
 }
