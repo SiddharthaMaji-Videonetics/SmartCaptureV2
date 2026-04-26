@@ -47,7 +47,6 @@ import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
-import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.toRect
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
@@ -154,8 +153,8 @@ fun CapturePage(
                     viewModel.captureReset()
                     sharedViewModel.saveCapturedImage(bitmap)
                     focusedObj?.apply {
-                        val rct = this.toRect().toNormalized(bitmap.width.toFloat(), bitmap.height.toFloat())
-                        sharedViewModel.saveCapturedImageBoundBox(this.toRect())
+                        val rct = this.toRect()
+                        sharedViewModel.saveCapturedImageBoundBox(rct)
                     }
 
                     navController.navigate("image_details")

@@ -48,12 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.videonatics.smartcapture.core.cropBitmapFromNormalizedRect
-import com.videonatics.smartcapture.core.mapRectToBitmapSpaceWithLetterbox
-import com.videonatics.smartcapture.core.mapToCanvas
+import com.videonatics.smartcapture.core.cropBitmap
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
-import com.videonatics.smartcapture.core.toImageRect
+import com.videonatics.smartcapture.core.toNormalized
+import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
 import com.videonatics.smartcapture.feature.details.data.model.ImageQualityResult
 import com.videonatics.smartcapture.feature.details.presentation.viewmodel.CaptureDetailsViewModel
@@ -218,29 +217,24 @@ fun ImageAnalysisPageComponent(
                 ) {
                     if (capturedImage != null && capturedImageBoundingBox != null) {
 //
-                        val normalizedBoundingBox = mapRectToBitmapSpaceWithLetterbox(
-                            capturedImageBoundingBox,
-                            416,
-                            capturedImage
+//                        val croppedImage = cropBitmapFromNormalizedRect(
+//                            capturedImage,
+//                            capturedImageBoundingBox
+//                        )
 
-                        )
 
-                        Log.d("CROP_DEBUG", """
-Rect(normalized): $normalizedBoundingBox
-Bitmap: ${capturedImage.width} x ${capturedImage.height}
-""".trimIndent())
-                        val croppedImage = cropBitmapFromNormalizedRect(
+                        val normalizedRect = capturedImageBoundingBox.toNormalized(imageWidth,imageHeight)
+                       val properRect = normalizedRect.toPixel(capturedImage.width.toFloat(),capturedImage.height.toFloat())
+                        val croppedBmp = cropBitmap(
                             capturedImage,
-                            normalizedBoundingBox
+                            properRect
                         )
+                         croppedBmp?.apply {
 
-
-                        croppedImage?.apply {
-
-                            onAnalyze(croppedImage)
+                            onAnalyze(croppedBmp)
                             ZoomableImageWithBoundingBox(
-                                bitmap = croppedImage,
-                                rect = normalizedBoundingBox,
+                                bitmap = capturedImage,
+                                rect = properRect,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

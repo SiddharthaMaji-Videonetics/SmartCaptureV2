@@ -9,10 +9,8 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.YuvImage
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.impl.utils.MatrixExt.postRotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
@@ -768,15 +766,11 @@ fun ByteBuffer.toByteArray(): ByteArray {
 }
 
 fun loadFatBoxModel(context: Context): Interpreter {
-    val file = context.assets.openFd("box_classifier.tflite")
-    val input = FileInputStream(file.fileDescriptor)
-    val channel = input.channel
-
-    val mapped = channel.map(
-        FileChannel.MapMode.READ_ONLY,
-        file.startOffset,
-        file.declaredLength
-    )
+    val mapped = try {
+        loadModelFile(context, "box_classifier.tflite")
+    } catch (e: Exception) {
+        throw RuntimeException("Failed to load box_classifier.tflite. Ensure the file exists in app/src/main/assets/", e)
+    }
 
     return Interpreter(mapped, Interpreter.Options().apply {
         setNumThreads(4)
@@ -793,87 +787,53 @@ fun List<RectF>.filterInside(focus: RectF): List<RectF> {
     return filter { RectF.intersects(it, focus) }
 }
 
-fun mapRectToBitmapSpaceWithLetterbox(
-    rect: RectF,              // model output (input size space)
-    inputSize: Int,           // e.g. 416 or 640
-    bitmap: Bitmap
+fun RectF.toNormalized(
+    imageWidth: Float,
+    imageHeight: Float
 ): RectF {
-
-    val bw = bitmap.width.toFloat()
-    val bh = bitmap.height.toFloat()
-
-    // 1. Compute scale used during resize (FIT)
-    val scale = minOf(inputSize / bw, inputSize / bh)
-
-    val scaledW = bw * scale
-    val scaledH = bh * scale
-
-    // 2. Compute padding (letterbox)
-    val dx = (inputSize - scaledW) / 2f
-    val dy = (inputSize - scaledH) / 2f
-
-    // 3. Remove padding from rect
-    val left = (rect.left - dx) / scale
-    val top = (rect.top - dy) / scale
-    val right = (rect.right - dx) / scale
-    val bottom = (rect.bottom - dy) / scale
-
-    return RectF(left, top, right, bottom)
+    return RectF(
+        (left / imageWidth).coerceIn(0f, 1f),
+        (top / imageHeight).coerceIn(0f, 1f),
+        (right / imageWidth).coerceIn(0f, 1f),
+        (bottom / imageHeight).coerceIn(0f, 1f)
+    )
 }
 
-fun cropBitmap(bitmap: Bitmap, rect: RectF): Bitmap {
-    if (bitmap.width <= 0 || bitmap.height <= 0) return bitmap
-
-    val x = rect.left.toInt().coerceIn(0, bitmap.width - 1)
-    val y = rect.top.toInt().coerceIn(0, bitmap.height - 1)
-    val width = rect.width().toInt().coerceIn(1, bitmap.width - x)
-    val height = rect.height().toInt().coerceIn(1, bitmap.height - y)
-
-    return Bitmap.createBitmap(bitmap, x, y, width, height)
+fun RectF.toPixel(
+    imageWidth: Float,
+    imageHeight: Float
+): RectF {
+    return RectF(
+        left * imageWidth,
+        top * imageHeight,
+        right * imageWidth,
+        bottom * imageHeight
+    )
 }
 
-fun cropBitmapFromNormalizedRect(
-    bitmap: Bitmap,
-    normalizedRect: RectF
+fun cropBitmap(
+    source: Bitmap,
+    rect: RectF
 ): Bitmap? {
 
-    // 1. Fix inverted rect (very important)
-    val leftN = minOf(normalizedRect.left, normalizedRect.right)
-    val rightN = maxOf(normalizedRect.left, normalizedRect.right)
-    val topN = minOf(normalizedRect.top, normalizedRect.bottom)
-    val bottomN = maxOf(normalizedRect.top, normalizedRect.bottom)
+    if (source.width == 0 || source.height == 0) return null
 
-    // 2. Clamp to [0,1]
-    val left = leftN.coerceIn(0f, 1f)
-    val top = topN.coerceIn(0f, 1f)
-    val right = rightN.coerceIn(0f, 1f)
-    val bottom = bottomN.coerceIn(0f, 1f)
+    // Clamp values to bitmap bounds
+    val left = rect.left.coerceIn(0f, source.width.toFloat())
+    val top = rect.top.coerceIn(0f, source.height.toFloat())
+    val right = rect.right.coerceIn(0f, source.width.toFloat())
+    val bottom = rect.bottom.coerceIn(0f, source.height.toFloat())
 
-    // 3. Convert to pixel space
-    val x = (left * bitmap.width).toInt()
-    val y = (top * bitmap.height).toInt()
-    val w = ((right - left) * bitmap.width).toInt()
-    val h = ((bottom - top) * bitmap.height).toInt()
+    val width = (right - left).toInt()
+    val height = (bottom - top).toInt()
 
-    // 4. Reject invalid crops
-    if (w <= 1 || h <= 1) {
-        return null // <-- THIS is likely happening in your case
-    }
+    if (width <= 0 || height <= 0) return null
 
-    // 5. Clamp safely
-    val safeW = (x + w).coerceAtMost(bitmap.width) - x
-    val safeH = (y + h).coerceAtMost(bitmap.height) - y
-
-    if (safeW <= 0 || safeH <= 0) return null
-
-    return Bitmap.createBitmap(bitmap, x, y, safeW, safeH)
-}
-
-fun RectF.toNormalized(imageWidth: Float, imageHeight: Float): RectF {
-    return RectF(
-        this.left / imageWidth,
-        this.top / imageHeight,
-        this.right / imageWidth,
-        this.bottom / imageHeight
+    return Bitmap.createBitmap(
+        source,
+        left.toInt(),
+        top.toInt(),
+        width,
+        height
     )
 }
