@@ -76,8 +76,9 @@ fun CapturePage(
 
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
     var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
-    val sensorHelper = remember { LevelSensorHelper(context) }
+    val sensorHelper = rememberLevelSensorHelper()
     val detectedObjCount = viewModel.detectedObjCount.collectAsState(0)
+
     val tilt by sensorHelper.orientation.collectAsState()
 
     LaunchedEffect(Unit) {
