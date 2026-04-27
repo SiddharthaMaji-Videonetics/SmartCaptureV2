@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.feature.capture.presentation.view
 import android.graphics.Bitmap
 import android.graphics.RectF
 import android.util.Log
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
@@ -57,6 +58,7 @@ fun CameraPreviewWithImageProxy(
     modifier: Modifier = Modifier,
     captureTrigger: Boolean = false,
     frameIntervalMs: Long = 150L,
+    torchEnabled: Boolean = false,
     onFrame: (ImageProxy) -> Unit,
     onFullImageCapture:(Float, Bitmap) -> Unit,
     onResolution: (width: Int, height: Int) -> Unit = { _, _ -> }
@@ -76,7 +78,11 @@ fun CameraPreviewWithImageProxy(
 
     val executor = remember { Executors.newSingleThreadExecutor() }
 
+    var camera by remember { mutableStateOf<Camera?>(null) }
 
+    LaunchedEffect(torchEnabled) {
+        camera?.cameraControl?.enableTorch(torchEnabled)
+    }
     LaunchedEffect(captureTrigger) {
         if (captureTrigger) {
             val executor = ContextCompat.getMainExecutor(context)
@@ -156,7 +162,7 @@ fun CameraPreviewWithImageProxy(
         try {
             cameraProvider.unbindAll()
 
-            cameraProvider.bindToLifecycle(
+            camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
                 preview,
@@ -236,9 +242,10 @@ fun BoundingBoxOverlay(
 @Composable
 fun ToolbarComponent(
     isLowLight: Boolean,
+    onFlashToggle:(Boolean)-> Unit,
     isBoundBoxEdit: Boolean,
-                     onBoundBoxEdit: (Boolean) -> Unit = {},
-                     onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
+    onBoundBoxEdit: (Boolean) -> Unit = {},
+    onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
     var isBoundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
     var isFlashOn by remember { mutableStateOf(false) }
     Row(
@@ -278,6 +285,7 @@ fun ToolbarComponent(
                     modifier = Modifier.padding(5.dp) .clickable(
                         onClick = {
                            isFlashOn = !isFlashOn
+                            onFlashToggle.invoke(isFlashOn)
                         }),
                     contentDescription = "Camera",
                     tint = if(isFlashOn)

@@ -243,6 +243,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
         }
     ){ paddingValues ->
         var isLowLight by remember { mutableStateOf(false) }
+        var torchEnabled by remember { mutableStateOf(false) }
         Box(modifier = Modifier
             .padding(paddingValues)
             .fillMaxSize()){
@@ -252,6 +253,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 inst,
                 updateCanvasSize,
                 onFocusRectRect,
+                torchEnabled = torchEnabled,
                 isBoundBoxEdit = isBoundBoxEdit,
                 detectedObjCount = detectedObjCount,
                 onLightQuality = {lLight ->
@@ -268,6 +270,9 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
             )
             ToolbarComponent(
                 isLowLight = isLowLight,
+                onFlashToggle = {
+                    torchEnabled = it
+                },
                 isBoundBoxEdit = isBoundBoxEdit,
                 onBoundBoxEdit = { isBoundBoxEdit = it }
             )
@@ -285,6 +290,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         onFocusRectRect:(RectF)-> Unit,
                         isBoundBoxEdit: Boolean = false,
                         detectedObjCount: Int = 0,
+                        torchEnabled: Boolean = false,
                         onLightQuality:(Boolean)-> Unit={},
                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
@@ -310,6 +316,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                     CameraPreviewWithImageProxy(
                         captureTrigger = captureTrigger,
                         frameIntervalMs = 500,
+                        torchEnabled = torchEnabled,
                         onFrame = { imageProxy ->
                             if (isProcessing) {
                                 imageProxy.close()
