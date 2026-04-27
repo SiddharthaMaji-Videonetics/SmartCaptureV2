@@ -25,7 +25,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +46,6 @@ import com.videonatics.smartcapture.core.averageLuma
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadModelFile
-import com.videonatics.smartcapture.core.mergeToFittedBoxes
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
@@ -83,6 +81,7 @@ fun CapturePage(
 
     LaunchedEffect(Unit) {
         sensorHelper.start()
+        sensorHelper.reset()
     }
 
     LaunchedEffect(Unit) {
@@ -268,6 +267,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
             HorizonLevelOverlay(
                 pitch = 0f,
                 roll = tilt.roll,
+                isCalibrated = tilt.isCalibrated,
                 onLevel = {
                     isLevel = it
                 },
@@ -443,7 +443,7 @@ fun CapturePageComponentPreview() {
             inst = AlignmentVector(0f, 0f, 0f),
             isCapturable = true,
             tilt = Orientation(
-                0f,0f
+                0f,0f,false
             )
         )
     }

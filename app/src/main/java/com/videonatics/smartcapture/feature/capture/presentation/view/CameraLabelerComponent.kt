@@ -35,32 +35,42 @@ import kotlin.math.abs
 fun HorizonLevelOverlay(
     pitch: Float,
     roll: Float,
+    isCalibrated: Boolean,
     onLevel: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val maxAngle = 45f
     val deadZone = 2f
 
-    val isLevel = abs(pitch) < deadZone && abs(roll) < deadZone
+    // Only valid when calibrated
+    val isLevel = isCalibrated &&
+            abs(pitch) < deadZone &&
+            abs(roll) < deadZone
 
-    // normalize
-    val targetPitch = (pitch.coerceIn(-maxAngle, maxAngle)) / maxAngle
-    val targetRoll = (roll.coerceIn(-maxAngle, maxAngle)) / maxAngle
+    // normalize (avoid movement before calibration)
+    val targetPitch = if (isCalibrated)
+        (pitch.coerceIn(-maxAngle, maxAngle)) / maxAngle else 0f
+
+    val targetRoll = if (isCalibrated)
+        (roll.coerceIn(-maxAngle, maxAngle)) / maxAngle else 0f
 
     val animatedPitch by animateFloatAsState(targetPitch, label = "pitch")
     val animatedRoll by animateFloatAsState(targetRoll, label = "roll")
 
-    //avoid recomposition spam
-    LaunchedEffect(isLevel) {
-        onLevel(isLevel)
+    // avoid wrong trigger before calibration
+    LaunchedEffect(isLevel, isCalibrated) {
+        if (isCalibrated) {
+            onLevel(isLevel)
+        }
     }
 
-    // instruction synced with UI (not raw values)
-    val instruction = remember(animatedPitch, animatedRoll, isLevel) {
+    // correct instruction logic
+    val instruction = remember(animatedPitch, animatedRoll, isLevel, isCalibrated) {
         val p = animatedPitch * maxAngle
         val r = animatedRoll * maxAngle
 
         when {
+            !isCalibrated -> "Hold device steady..."
             isLevel -> "Perfectly level"
             abs(r) > abs(p) -> if (r > 0) "Tilt left" else "Tilt right"
             else -> if (p > 0) "Move down" else "Move up"
@@ -73,21 +83,27 @@ fun HorizonLevelOverlay(
 
             val center = center
 
-            val verticalOffset = (animatedPitch * size.height / 6f)
-                .coerceIn(-size.height / 4f, size.height / 4f)
+            // no movement before calibration
+            val verticalOffset = if (isCalibrated) {
+                (animatedPitch * size.height / 6f)
+                    .coerceIn(-size.height / 4f, size.height / 4f)
+            } else 0f
 
-            val rotation = animatedRoll * 45f
+            val rotation = if (isCalibrated) animatedRoll * 45f else 0f
 
-            rotate(rotation, pivot = center) {
-                val y = center.y + verticalOffset
+            // optional: hide line until calibrated
+            if (isCalibrated) {
+                rotate(rotation, pivot = center) {
+                    val y = center.y + verticalOffset
 
-                drawLine(
-                    color = if (isLevel) Color(0xFF7787FF) else Color(0xFF676A85),
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = if (isLevel) 2.dp.toPx() else 1.dp.toPx(),
-                    cap = StrokeCap.Round
-                )
+                    drawLine(
+                        color = if (isLevel) Color(0xFF7787FF) else Color(0xFF676A85),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = if (isLevel) 2.dp.toPx() else 1.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
             }
 
             drawCircle(
@@ -97,7 +113,7 @@ fun HorizonLevelOverlay(
             )
         }
 
-        // Instruction
+        // Instruction / calibration state
         AnimatedVisibility(
             visible = !isLevel,
             modifier = Modifier
@@ -117,22 +133,21 @@ fun HorizonLevelOverlay(
             )
         }
 
-        // Level indicator
-        AnimatedVisibility(
-            visible = isLevel,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-        ) {
-            Text(
-                text = "Level ✓",
-                color = Color(0xFF7787FF),
-                fontSize = 14.sp
-            )
-        }
+//        // Level indicator
+//        AnimatedVisibility(
+//            visible = isLevel,
+//            modifier = Modifier
+//                .align(Alignment.BottomCenter)
+//                .padding(bottom = 32.dp)
+//        ) {
+//            Text(
+//                text = "Level",
+//                color = Color(0xFF7787FF),
+//                fontSize = 14.sp
+//            )
+//        }
     }
 }
-
 @Composable
 fun rememberLevelSensorHelper(): LevelSensorHelper {
     val context = LocalContext.current
@@ -143,13 +158,10 @@ fun rememberLevelSensorHelper(): LevelSensorHelper {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
+
                 Lifecycle.Event.ON_RESUME -> {
                     helper.start()
-
-                    // delay → let sensor stabilize
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        helper.recalibrate()
-                    }, 300)
+                    helper.reset()
                 }
 
                 Lifecycle.Event.ON_PAUSE -> {

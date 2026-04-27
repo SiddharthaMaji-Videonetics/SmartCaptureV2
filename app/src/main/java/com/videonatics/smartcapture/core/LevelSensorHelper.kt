@@ -27,23 +27,23 @@ class LevelSensorHelper(
         sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
             ?: sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
 
-    private val _orientation = MutableStateFlow(Orientation(0f, 0f))
+    private val _orientation =
+        MutableStateFlow(Orientation(0f, 0f, false))
     val orientation: StateFlow<Orientation> = _orientation
 
     private var isRunning = false
 
-    // smoothing state
+    // smoothing
     private var smoothPitch = 0f
     private var smoothRoll = 0f
 
-    // calibration offsets (locked reference)
-    private var basePitch = 0f
-    private var baseRoll = 0f
-    private var isCalibrated = false
+    // stability detection
+    private var lastPitch = 0f
+    private var lastRoll = 0f
+    private var stableCounter = 0
 
     fun start() {
         if (sensor == null || isRunning) return
-
         sensorManager.registerListener(
             this,
             sensor,
@@ -58,11 +58,9 @@ class LevelSensorHelper(
         isRunning = false
     }
 
-    fun recalibrate() {
-        // lock current stable position as "level"
-        basePitch = smoothPitch
-        baseRoll = smoothRoll
-        isCalibrated = true
+    fun reset() {
+        stableCounter = 0
+        _orientation.value = Orientation(0f, 0f, false)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -75,7 +73,6 @@ class LevelSensorHelper(
 
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 
-        // compensate screen rotation
         val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             context.display?.rotation ?: Surface.ROTATION_0
         } else {
@@ -98,41 +95,49 @@ class LevelSensorHelper(
             adjustedMatrix
         )
 
-        // ✅ stable orientation extraction
         val orientationVals = FloatArray(3)
         SensorManager.getOrientation(adjustedMatrix, orientationVals)
 
         var pitch = Math.toDegrees(orientationVals[1].toDouble()).toFloat()
         var roll = Math.toDegrees(orientationVals[2].toDouble()).toFloat()
 
-        // normalize roll (prevents flipping)
+        // normalize
         if (roll > 90f) roll = 180f - roll
         if (roll < -90f) roll = -180f - roll
-
-        // invert pitch for natural UX
         pitch = -pitch
 
-        // initial calibration (first stable frame)
-        if (!isCalibrated) {
-            basePitch = pitch
-            baseRoll = roll
-            isCalibrated = true
-        }
+        val stable = detectStability(pitch, roll)
 
-        val calibratedPitch = pitch - basePitch
-        val calibratedRoll = roll - baseRoll
-
-        // adaptive smoothing
-        smoothPitch = smooth(calibratedPitch, smoothPitch)
-        smoothRoll = smooth(calibratedRoll, smoothRoll)
+        // ✅ Emit absolute values (relative to gravity), don't subtract a base "calibration" value
+        // if you want the level to show actual tilt relative to the earth.
+        smoothPitch = smooth(pitch, smoothPitch)
+        smoothRoll = smooth(roll, smoothRoll)
 
         _orientation.value = Orientation(
             pitch = smoothPitch,
-            roll = smoothRoll
+            roll = smoothRoll,
+            isCalibrated = true
         )
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun detectStability(pitch: Float, roll: Float): Boolean {
+        val delta =
+            kotlin.math.abs(pitch - lastPitch) +
+                    kotlin.math.abs(roll - lastRoll)
+
+        lastPitch = pitch
+        lastRoll = roll
+
+        return if (delta < 0.2f) {
+            stableCounter++
+            stableCounter > 8
+        } else {
+            stableCounter = 0
+            false
+        }
+    }
 
     private fun smooth(new: Float, prev: Float): Float {
         val delta = kotlin.math.abs(new - prev)
@@ -147,5 +152,6 @@ class LevelSensorHelper(
 
 data class Orientation(
     val pitch: Float,
-    val roll: Float
+    val roll: Float,
+    val isCalibrated: Boolean
 )
