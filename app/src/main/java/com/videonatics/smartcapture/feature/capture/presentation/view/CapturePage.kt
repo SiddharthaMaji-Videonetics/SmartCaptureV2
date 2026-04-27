@@ -73,6 +73,8 @@ fun CapturePage(
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
     var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
 
+    val detectedObjCount = viewModel.detectedObjCount.collectAsState(0)
+
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
             val model = try {
@@ -120,7 +122,7 @@ fun CapturePage(
         }
     }
 
-    // 🔐 Camera permission
+    //Camera permission
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
     LaunchedEffect(Unit) {
@@ -146,6 +148,7 @@ fun CapturePage(
                 inst = instruction,
                 captureTrigger = captureTrigger,
                 isCapturable = isCapturable,
+                detectedObjCount = detectedObjCount.value,
                 onCaptureImage = {
                     viewModel.captureImage()
                 },
@@ -186,7 +189,7 @@ fun CapturePage(
         }
     }
 
-    // 🧹 Cleanup
+    //Cleanup
     DisposableEffect(Unit) {
         onDispose {
             interpreter?.close()
@@ -202,6 +205,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          captureTrigger: Boolean = false,
                          inst: AlignmentVector? = null,
                          isCapturable: Boolean = false,
+                         detectedObjCount: Int = 0,
                          onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                          onCaptureImage:()-> Unit ={},
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->},
@@ -233,6 +237,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 updateCanvasSize,
                 onFocusRectRect,
                 isBoundBoxEdit = isBoundBoxEdit,
+                detectedObjCount = detectedObjCount,
                 onFullImageCapture = onFullImageCapture,
                 onImageDimensionsCaptured = onImageDimensionsCaptured,
                 onDetectionChanges = onDetectionChanges)
@@ -254,6 +259,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         updateCanvasSize:(Float, Float) -> Unit,
                         onFocusRectRect:(RectF)-> Unit,
                         isBoundBoxEdit: Boolean = false,
+                        detectedObjCount: Int = 0,
                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                         onDetectionChanges: (List<Detection>)-> Unit) {
@@ -296,7 +302,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                     prep.ratio,
                                     prep.dx,
                                     prep.dy,
-                                    confThreshold = 0.18f,
+                                    confThreshold = 0.8f,
                                     iouThreshold = 0.35f,
                                     imgSize = 416
                                 )
@@ -332,7 +338,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         },
 
                     )
-                    if(focusBox!=null) {
+                    if(focusBox!=null && detectedObjCount>0) {
                         InstructionGuideOverlay(
                             modifier = Modifier
                                 .fillMaxSize(),

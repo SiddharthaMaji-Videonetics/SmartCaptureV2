@@ -23,12 +23,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor() : ViewModel(){
+
     private var canvasWidth: Float = 0f
     private var canvasHeight: Float = 0f
 
     private val _detectionList = ArrayList<Detection>()
     private var _focusBox: RectF? =null
     private var _objectInsideFocusBoxCount = MutableStateFlow(0)
+    val detectedObjCount = _objectInsideFocusBoxCount
 
     private var _inst = MutableStateFlow<AlignmentVector?>(null)
     val inst: Flow<AlignmentVector?> = _inst
@@ -56,7 +58,6 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     private fun calculateObjectInsideFocusBoxCount() {
 
         val focus = _focusBox ?: return
-        if (_detectionList.isEmpty()) return
 
         // --- Helper: corners → RectF ---
         fun Detection.toRect(): RectF {
@@ -99,13 +100,13 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
         }
 
         // --- Count objects inside focus box ---
-        val insideRects = _detectionList
-            .map { it.toRect() }
-            .filterInside(focus)
+//        val insideRects = _detectionList
+//            .map { it.toRect() }
+//            .filterInside(focus)
 
-        _objectInsideFocusBoxCount.tryEmit(insideRects.size)
+        _objectInsideFocusBoxCount.tryEmit(_detectionList.size)
 
-        Log.e("boxInBox", insideRects.size.toString())
+      //  Log.e("boxInBox", insideRects.size.toString())
     }
 
     fun setFocusBox(rect: RectF){

@@ -233,7 +233,8 @@ fun BoundingBoxOverlay(
 }
 
 @Composable
-fun ToolbarComponent(isBoundBoxEdit: Boolean,
+fun ToolbarComponent(
+    isBoundBoxEdit: Boolean,
                      onBoundBoxEdit: (Boolean) -> Unit = {},
                      onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
     var isBoundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }

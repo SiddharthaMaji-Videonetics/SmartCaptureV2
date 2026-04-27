@@ -181,7 +181,7 @@ fun parseOutput(
         val h = output[0][3][i] * imgSize
         val angle = output[0][5][i]
 
-        // --- 🔥 Noise Filters ---
+        // Noise Filters ---
 
         // 1. Size filter
         if (w < minSize || h < minSize) continue
