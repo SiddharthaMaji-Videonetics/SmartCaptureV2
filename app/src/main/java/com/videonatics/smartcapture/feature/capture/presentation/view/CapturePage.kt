@@ -41,7 +41,9 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.LevelSensorHelper
+import com.videonatics.smartcapture.core.LowLightDetector
 import com.videonatics.smartcapture.core.Orientation
+import com.videonatics.smartcapture.core.averageLuma
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadModelFile
@@ -240,8 +242,10 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
 
         }
     ){ paddingValues ->
-
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()){
+        var isLowLight by remember { mutableStateOf(false) }
+        Box(modifier = Modifier
+            .padding(paddingValues)
+            .fillMaxSize()){
             CameraDetectionView(interpreter,
                 focusedObj,
                 captureTrigger,
@@ -250,6 +254,9 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 onFocusRectRect,
                 isBoundBoxEdit = isBoundBoxEdit,
                 detectedObjCount = detectedObjCount,
+                onLightQuality = {lLight ->
+                    isLowLight = lLight
+                },
                 onFullImageCapture = onFullImageCapture,
                 onImageDimensionsCaptured = onImageDimensionsCaptured,
                 onDetectionChanges = onDetectionChanges)
@@ -260,6 +267,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 modifier = Modifier.matchParentSize()
             )
             ToolbarComponent(
+                isLowLight = isLowLight,
                 isBoundBoxEdit = isBoundBoxEdit,
                 onBoundBoxEdit = { isBoundBoxEdit = it }
             )
@@ -277,6 +285,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         onFocusRectRect:(RectF)-> Unit,
                         isBoundBoxEdit: Boolean = false,
                         detectedObjCount: Int = 0,
+                        onLightQuality:(Boolean)-> Unit={},
                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                         onDetectionChanges: (List<Detection>)-> Unit) {
@@ -285,6 +294,8 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
 
+    val detector = remember { LowLightDetector() }
+    var isLowLight by remember { mutableStateOf(false) }
 
     return Box(){
         var focusBox by remember { mutableStateOf<RectF?>(null) }
@@ -306,6 +317,12 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             }
 
                             isProcessing = true
+                            val luma = imageProxy.averageLuma()
+                            val result = detector.update(luma)
+
+                            onLightQuality.invoke(result)
+
+
                             try {
                                 val prep = preprocess(imageProxy, 416)
 
@@ -366,9 +383,11 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
                 }
             }else{
-                Box(modifier = Modifier.fillMaxSize().background(
-                    color = androidx.compose.ui.graphics.Color(0xFF000000)
-                ),
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        color = androidx.compose.ui.graphics.Color(0xFF000000)
+                    ),
                     contentAlignment = Alignment.Center){
                     Icon(
                         painterResource(R.drawable.ic_videocamera),

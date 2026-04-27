@@ -11,6 +11,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -234,10 +235,12 @@ fun BoundingBoxOverlay(
 
 @Composable
 fun ToolbarComponent(
+    isLowLight: Boolean,
     isBoundBoxEdit: Boolean,
                      onBoundBoxEdit: (Boolean) -> Unit = {},
                      onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
     var isBoundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
+    var isFlashOn by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -268,15 +271,23 @@ fun ToolbarComponent(
 
             )
 
-        Box(){
-            Icon(
-                painterResource(R.drawable.ic_flash_on),
-                modifier = Modifier.padding(5.dp),
-                contentDescription = "Camera",
-                tint = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+        AnimatedVisibility(visible = isLowLight || isFlashOn){
+            Box(){
+                Icon(
+                    painterResource(R.drawable.ic_flash_on),
+                    modifier = Modifier.padding(5.dp) .clickable(
+                        onClick = {
+                           isFlashOn = !isFlashOn
+                        }),
+                    contentDescription = "Camera",
+                    tint = if(isFlashOn)
+                        androidx.compose.ui.graphics.Color(0xFFFF9800) else
+                        androidx.compose.ui.graphics.Color(0xFFFFFFFF),
 
-                )
+                    )
+            }
         }
+
 
     }
 }
