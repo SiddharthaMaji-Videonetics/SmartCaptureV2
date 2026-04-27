@@ -76,7 +76,7 @@ class LevelSensorHelper(
             event.values
         )
 
-        // ✅ Screen rotation compensation
+        //Screen rotation compensation
         val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             context.display?.rotation ?: Surface.ROTATION_0
         } else {
@@ -99,12 +99,12 @@ class LevelSensorHelper(
             adjustedMatrix
         )
 
-        // 🔥 Gravity vector (Z axis of device)
+        //Gravity vector (Z axis of device)
         val gX = adjustedMatrix[6]
         val gY = adjustedMatrix[7]
         val gZ = adjustedMatrix[8]
 
-        // ✅ Decoupled pitch (forward/back tilt)
+        //Decoupled pitch (forward/back tilt)
         val rawPitch = Math.toDegrees(
             atan2(
                 -gY.toDouble(),
@@ -112,7 +112,7 @@ class LevelSensorHelper(
             )
         ).toFloat()
 
-        // ✅ Decoupled roll (left/right tilt) — FIXED
+        //Decoupled roll (left/right tilt) — FIXED
         val rawRoll = Math.toDegrees(
             atan2(
                 gX.toDouble(),
@@ -120,14 +120,14 @@ class LevelSensorHelper(
             )
         ).toFloat()
 
-        // ✅ Calibration (removes bias)
+        //Calibration (removes bias)
         if (basePitch == null) basePitch = rawPitch
         if (baseRoll == null) baseRoll = rawRoll
 
         val calibratedPitch = rawPitch - (basePitch ?: 0f)
         val calibratedRoll = rawRoll - (baseRoll ?: 0f)
 
-        // ✅ Smoothing
+        //Smoothing
         smoothPitch = smooth(calibratedPitch, smoothPitch)
         smoothRoll = smooth(calibratedRoll, smoothRoll)
 
