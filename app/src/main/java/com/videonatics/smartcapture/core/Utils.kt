@@ -837,3 +837,26 @@ fun cropBitmap(
         height
     )
 }
+
+//for leveler using sensors
+fun mapToOffset(
+    pitch: Float,
+    roll: Float,
+    maxAngle: Float = 45f
+): Offset {
+    val clampedPitch = pitch.coerceIn(-maxAngle, maxAngle)
+    val clampedRoll = roll.coerceIn(-maxAngle, maxAngle)
+
+    val normalizedX = clampedRoll / maxAngle
+    val normalizedY = clampedPitch / maxAngle
+
+    return Offset(normalizedX, normalizedY)
+}
+
+fun smooth(
+    new: Float,
+    prev: Float,
+    alpha: Float = 0.1f
+): Float {
+    return prev + alpha * (new - prev)
+}

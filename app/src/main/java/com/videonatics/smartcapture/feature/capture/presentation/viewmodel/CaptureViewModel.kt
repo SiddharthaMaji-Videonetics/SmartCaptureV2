@@ -8,6 +8,8 @@ import androidx.camera.core.ImageProxy
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.toRect
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.core.LevelSensorHelper
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.filterInside
@@ -20,6 +22,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor() : ViewModel(){
@@ -45,6 +50,15 @@ class CaptureViewModel @Inject constructor() : ViewModel(){
     var captureTrigger = _captureTrigger
 
 
+    //stability ----
+
+    private val _isStable = MutableStateFlow(false)
+    val isStable: StateFlow<Boolean> = _isStable
+
+    fun updateStability(stable: Boolean) {
+        _isStable.value = stable
+    }
+    //--------------
 
 
     fun setDetection(detections: List<Detection>) {

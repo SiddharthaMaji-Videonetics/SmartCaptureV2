@@ -40,6 +40,8 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
+import com.videonatics.smartcapture.core.LevelSensorHelper
+import com.videonatics.smartcapture.core.Orientation
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.loadModelFile
@@ -72,8 +74,13 @@ fun CapturePage(
 
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
     var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
-
+    val sensorHelper = remember { LevelSensorHelper(context) }
     val detectedObjCount = viewModel.detectedObjCount.collectAsState(0)
+    val tilt by sensorHelper.orientation.collectAsState()
+
+    LaunchedEffect(Unit) {
+        sensorHelper.start()
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
@@ -149,6 +156,7 @@ fun CapturePage(
                 captureTrigger = captureTrigger,
                 isCapturable = isCapturable,
                 detectedObjCount = detectedObjCount.value,
+                tilt = tilt,
                 onCaptureImage = {
                     viewModel.captureImage()
                 },
@@ -194,6 +202,7 @@ fun CapturePage(
         onDispose {
             interpreter?.close()
             gpuDelegate?.close()
+            sensorHelper.stop()
         }
     }
 }
@@ -206,6 +215,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          inst: AlignmentVector? = null,
                          isCapturable: Boolean = false,
                          detectedObjCount: Int = 0,
+                         tilt: Orientation,
                          onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                          onCaptureImage:()-> Unit ={},
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->},
@@ -213,6 +223,8 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                          onDetectionChanges: (List<Detection>) -> Unit = {}) {
     var isBoundBoxEdit by remember { mutableStateOf(false) }
+
+
 
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
@@ -242,6 +254,11 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 onImageDimensionsCaptured = onImageDimensionsCaptured,
                 onDetectionChanges = onDetectionChanges)
 
+            HorizonLevelOverlay(
+                pitch = 0f,
+                roll = tilt.roll,
+                modifier = Modifier.matchParentSize()
+            )
             ToolbarComponent(
                 isBoundBoxEdit = isBoundBoxEdit,
                 onBoundBoxEdit = { isBoundBoxEdit = it }
@@ -393,7 +410,10 @@ fun CapturePageComponentPreview() {
     SmartCaptureTheme {
         CapturePageComponent(
             inst = AlignmentVector(0f, 0f, 0f),
-            isCapturable = true
+            isCapturable = true,
+            tilt = Orientation(
+                0f,0f
+            )
         )
     }
 }
