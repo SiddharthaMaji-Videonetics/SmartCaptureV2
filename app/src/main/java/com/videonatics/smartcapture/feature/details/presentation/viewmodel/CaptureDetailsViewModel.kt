@@ -30,6 +30,9 @@ class CaptureDetailsViewModel @Inject constructor(
     private val _classificationState = MutableStateFlow<ClassificationState>(ClassificationState.Idle)
     val classificationState: StateFlow<ClassificationState> = _classificationState
 
+
+
+
     fun analyzeQuality(bitmap: Bitmap) {
         viewModelScope.launch {
             _qualityState.value = QualityState.Loading

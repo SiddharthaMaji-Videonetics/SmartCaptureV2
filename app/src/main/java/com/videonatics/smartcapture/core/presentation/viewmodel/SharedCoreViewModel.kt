@@ -34,6 +34,13 @@ class SharedCoreViewModel @Inject constructor(
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
 
+    private val recentCaptureImagePreCaptureArray = ArrayList<Bitmap>()
+
+    private val _recentCaptureImagePreCaptures = mutableListOf<Bitmap>()
+    val recentCaptureImagePreCaptures: List<Bitmap> = _recentCaptureImagePreCaptures
+    fun addRecentCaptureImagePreCapture(image: Bitmap) {
+        _recentCaptureImagePreCaptures.add(image)
+    }
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
     }
