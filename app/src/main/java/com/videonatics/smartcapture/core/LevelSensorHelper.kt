@@ -32,13 +32,14 @@ class LevelSensorHelper(
 
     private var isRunning = false
 
-    // smoothing
+    // smoothing state
     private var smoothPitch = 0f
     private var smoothRoll = 0f
 
-    // calibration
-    private var basePitch: Float? = null
-    private var baseRoll: Float? = null
+    // calibration offsets (locked reference)
+    private var basePitch = 0f
+    private var baseRoll = 0f
+    private var isCalibrated = false
 
     fun start() {
         if (sensor == null || isRunning) return
@@ -58,12 +59,13 @@ class LevelSensorHelper(
     }
 
     fun recalibrate() {
-        basePitch = null
-        baseRoll = null
+        // lock current stable position as "level"
+        basePitch = smoothPitch
+        baseRoll = smoothRoll
+        isCalibrated = true
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-
         if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR &&
             event.sensor.type != Sensor.TYPE_GAME_ROTATION_VECTOR
         ) return
@@ -71,12 +73,9 @@ class LevelSensorHelper(
         val rotationMatrix = FloatArray(9)
         val adjustedMatrix = FloatArray(9)
 
-        SensorManager.getRotationMatrixFromVector(
-            rotationMatrix,
-            event.values
-        )
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 
-        //Screen rotation compensation
+        // compensate screen rotation
         val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             context.display?.rotation ?: Surface.ROTATION_0
         } else {
@@ -99,35 +98,31 @@ class LevelSensorHelper(
             adjustedMatrix
         )
 
-        //Gravity vector (Z axis of device)
-        val gX = adjustedMatrix[6]
-        val gY = adjustedMatrix[7]
-        val gZ = adjustedMatrix[8]
+        // ✅ stable orientation extraction
+        val orientationVals = FloatArray(3)
+        SensorManager.getOrientation(adjustedMatrix, orientationVals)
 
-        //Decoupled pitch (forward/back tilt)
-        val rawPitch = Math.toDegrees(
-            atan2(
-                -gY.toDouble(),
-                sqrt((gX * gX + gZ * gZ).toDouble())
-            )
-        ).toFloat()
+        var pitch = Math.toDegrees(orientationVals[1].toDouble()).toFloat()
+        var roll = Math.toDegrees(orientationVals[2].toDouble()).toFloat()
 
-        //Decoupled roll (left/right tilt) — FIXED
-        val rawRoll = Math.toDegrees(
-            atan2(
-                gX.toDouble(),
-                sqrt((gY * gY + gZ * gZ).toDouble())
-            )
-        ).toFloat()
+        // normalize roll (prevents flipping)
+        if (roll > 90f) roll = 180f - roll
+        if (roll < -90f) roll = -180f - roll
 
-        //Calibration (removes bias)
-        if (basePitch == null) basePitch = rawPitch
-        if (baseRoll == null) baseRoll = rawRoll
+        // invert pitch for natural UX
+        pitch = -pitch
 
-        val calibratedPitch = rawPitch - (basePitch ?: 0f)
-        val calibratedRoll = rawRoll - (baseRoll ?: 0f)
+        // initial calibration (first stable frame)
+        if (!isCalibrated) {
+            basePitch = pitch
+            baseRoll = roll
+            isCalibrated = true
+        }
 
-        //Smoothing
+        val calibratedPitch = pitch - basePitch
+        val calibratedRoll = roll - baseRoll
+
+        // adaptive smoothing
         smoothPitch = smooth(calibratedPitch, smoothPitch)
         smoothRoll = smooth(calibratedRoll, smoothRoll)
 
@@ -139,7 +134,13 @@ class LevelSensorHelper(
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    private fun smooth(new: Float, prev: Float, alpha: Float = 0.1f): Float {
+    private fun smooth(new: Float, prev: Float): Float {
+        val delta = kotlin.math.abs(new - prev)
+        val alpha = when {
+            delta > 10f -> 0.25f
+            delta > 3f -> 0.15f
+            else -> 0.05f
+        }
         return prev + alpha * (new - prev)
     }
 }

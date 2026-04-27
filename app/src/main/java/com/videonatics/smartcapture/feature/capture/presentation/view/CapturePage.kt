@@ -226,12 +226,12 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          onDetectionChanges: (List<Detection>) -> Unit = {}) {
     var isBoundBoxEdit by remember { mutableStateOf(false) }
 
-
+    var isLevel by remember { mutableStateOf(false) }
 
     Scaffold (
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
-            AnimatedVisibility(visible = isCapturable && !isBoundBoxEdit) {
+            AnimatedVisibility(visible = isCapturable && !isBoundBoxEdit && isLevel) {
                 FloatingActionButton(onClick = {
                     onCaptureImage.invoke()
                 }) {
@@ -244,6 +244,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
     ){ paddingValues ->
         var isLowLight by remember { mutableStateOf(false) }
         var torchEnabled by remember { mutableStateOf(false) }
+
         Box(modifier = Modifier
             .padding(paddingValues)
             .fillMaxSize()){
@@ -266,6 +267,9 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
             HorizonLevelOverlay(
                 pitch = 0f,
                 roll = tilt.roll,
+                onLevel = {
+                    isLevel = it
+                },
                 modifier = Modifier.matchParentSize()
             )
             ToolbarComponent(
