@@ -10,6 +10,8 @@ import android.view.Surface
 import android.view.WindowManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 class LevelSensorHelper(
     private val context: Context
@@ -21,23 +23,29 @@ class LevelSensorHelper(
     private val windowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    private val rotationSensor =
+    private val sensor: Sensor? =
         sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            ?: sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
 
     private val _orientation = MutableStateFlow(Orientation(0f, 0f))
     val orientation: StateFlow<Orientation> = _orientation
 
+    private var isRunning = false
+
+    // smoothing
     private var smoothPitch = 0f
     private var smoothRoll = 0f
 
-    private var isRunning = false
+    // calibration
+    private var basePitch: Float? = null
+    private var baseRoll: Float? = null
 
     fun start() {
-        if (rotationSensor == null || isRunning) return
+        if (sensor == null || isRunning) return
 
         sensorManager.registerListener(
             this,
-            rotationSensor,
+            sensor,
             SensorManager.SENSOR_DELAY_GAME
         )
         isRunning = true
@@ -49,23 +57,29 @@ class LevelSensorHelper(
         isRunning = false
     }
 
+    fun recalibrate() {
+        basePitch = null
+        baseRoll = null
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
-        if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
+
+        if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR &&
+            event.sensor.type != Sensor.TYPE_GAME_ROTATION_VECTOR
+        ) return
 
         val rotationMatrix = FloatArray(9)
         val adjustedMatrix = FloatArray(9)
-        val orientationAngles = FloatArray(3)
 
-        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+        SensorManager.getRotationMatrixFromVector(
+            rotationMatrix,
+            event.values
+        )
 
-        //Handle device rotation (CRITICAL)
+        // ✅ Screen rotation compensation
         val rotation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            context.display.rotation
+            context.display?.rotation ?: Surface.ROTATION_0
         } else {
-            @Suppress("DEPRECATION")
-            val windowManager =
-                context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-
             @Suppress("DEPRECATION")
             windowManager.defaultDisplay.rotation
         }
@@ -85,14 +99,37 @@ class LevelSensorHelper(
             adjustedMatrix
         )
 
-        SensorManager.getOrientation(adjustedMatrix, orientationAngles)
+        // 🔥 Gravity vector (Z axis of device)
+        val gX = adjustedMatrix[6]
+        val gY = adjustedMatrix[7]
+        val gZ = adjustedMatrix[8]
 
-        val pitch = Math.toDegrees(orientationAngles[1].toDouble()).toFloat()
-        val roll = Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
+        // ✅ Decoupled pitch (forward/back tilt)
+        val rawPitch = Math.toDegrees(
+            atan2(
+                -gY.toDouble(),
+                sqrt((gX * gX + gZ * gZ).toDouble())
+            )
+        ).toFloat()
 
-        // ✅ Smooth (prevents jitter)
-        smoothPitch = smooth(pitch, smoothPitch)
-        smoothRoll = smooth(roll, smoothRoll)
+        // ✅ Decoupled roll (left/right tilt) — FIXED
+        val rawRoll = Math.toDegrees(
+            atan2(
+                gX.toDouble(),
+                sqrt((gY * gY + gZ * gZ).toDouble())
+            )
+        ).toFloat()
+
+        // ✅ Calibration (removes bias)
+        if (basePitch == null) basePitch = rawPitch
+        if (baseRoll == null) baseRoll = rawRoll
+
+        val calibratedPitch = rawPitch - (basePitch ?: 0f)
+        val calibratedRoll = rawRoll - (baseRoll ?: 0f)
+
+        // ✅ Smoothing
+        smoothPitch = smooth(calibratedPitch, smoothPitch)
+        smoothRoll = smooth(calibratedRoll, smoothRoll)
 
         _orientation.value = Orientation(
             pitch = smoothPitch,
