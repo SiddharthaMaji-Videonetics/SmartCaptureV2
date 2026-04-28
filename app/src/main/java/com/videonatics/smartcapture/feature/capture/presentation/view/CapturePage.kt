@@ -324,16 +324,12 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         torchEnabled = torchEnabled,
                         onFrame = { imageProxy ->
                             if (isProcessing) {
-                                imageProxy.close()
                                 return@CameraPreviewWithImageProxy
                             }
 
                             isProcessing = true
                             val luma = imageProxy.averageLuma()
-                            val result = detector.update(luma)
-
-                            onLightQuality.invoke(result)
-
+                            onLightQuality.invoke(detector.update(luma))
 
                             try {
                                 val prep = preprocess(imageProxy, 416)
@@ -353,9 +349,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                     imgSize = 416
                                 )
 
-                                //val finalDetections = nmsPerClass(detections)
-                                //val merged = mergeToFittedBoxes(finalDetections, 5f)
-
                                 detectionList = finalDetections.toList()
                                 onDetectionChanges.invoke(finalDetections)
                                 imageWidth = prep.srcWidth.toFloat()
@@ -366,7 +359,6 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                 e.printStackTrace()
                             } finally {
                                 isProcessing = false
-                                imageProxy.close()
                             }
                         },
                         onFullImageCapture = { rotation, bitmap ->

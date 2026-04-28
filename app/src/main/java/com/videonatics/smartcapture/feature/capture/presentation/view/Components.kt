@@ -77,24 +77,29 @@ fun CameraPreviewWithImageProxy(
     }
 
     val executor = remember { Executors.newSingleThreadExecutor() }
-
     var camera by remember { mutableStateOf<Camera?>(null) }
 
     LaunchedEffect(torchEnabled) {
         camera?.cameraControl?.enableTorch(torchEnabled)
     }
+
     LaunchedEffect(captureTrigger) {
         if (captureTrigger) {
-            val executor = ContextCompat.getMainExecutor(context)
+            val mainExecutor = ContextCompat.getMainExecutor(context)
 
             imageCapture?.takePicture(
-                executor,
+                mainExecutor,
                 object : ImageCapture.OnImageCapturedCallback() {
-
                     override fun onCaptureSuccess(image: ImageProxy) {
-                        val rotation = image.imageInfo.rotationDegrees.toFloat()
-                        val bitmap = imageProxyToBitmap(image)
-                        onFullImageCapture(rotation, bitmap)
+                        try {
+                            val rotation = image.imageInfo.rotationDegrees.toFloat()
+                            val bitmap = imageProxyToBitmap(image)
+                            onFullImageCapture(rotation, bitmap)
+                        } catch (e: Exception) {
+                            Log.e("CameraPreview", "Error processing captured image", e)
+                        } finally {
+                            image.close()
+                        }
                     }
 
                     override fun onError(exception: ImageCaptureException) {
@@ -108,6 +113,12 @@ fun CameraPreviewWithImageProxy(
 
     DisposableEffect(Unit) {
         onDispose {
+            try {
+                val cameraProvider = cameraProviderFuture.get()
+                cameraProvider.unbindAll()
+            } catch (e: Exception) {
+                Log.e("CameraPreview", "Error unbinding camera", e)
+            }
             executor.shutdown()
         }
     }
@@ -122,16 +133,12 @@ fun CameraPreviewWithImageProxy(
         var lastFrameTime = 0L
         var resolutionSent = false
 
-
-
         val imageAnalyzer = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
 
-
-
         imageAnalyzer.setAnalyzer(executor) { imageProxy ->
-
             val now = System.currentTimeMillis()
 
             if (!resolutionSent) {
@@ -143,7 +150,7 @@ fun CameraPreviewWithImageProxy(
                 try {
                     onFrame(imageProxy)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e("CameraPreview", "Error in onFrame analyzer", e)
                 } finally {
                     imageProxy.close()
                 }
@@ -171,7 +178,7 @@ fun CameraPreviewWithImageProxy(
             )
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("CameraPreview", "Use case binding failed", e)
         }
     }
 
