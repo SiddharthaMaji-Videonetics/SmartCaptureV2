@@ -1,8 +1,10 @@
 package com.videonatics.smartcapture.feature.details.di
 
 import android.content.Context
+import com.videonatics.smartcapture.core.MoireEffectClassifier
 import com.videonatics.smartcapture.core.loadFatBoxLabels
 import com.videonatics.smartcapture.core.loadFatBoxModel
+import com.videonatics.smartcapture.core.loadMoireModel
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
 import com.videonatics.smartcapture.feature.details.data.repository.ImageUploadRepositoryImpl
 import com.videonatics.smartcapture.feature.details.domain.repository.ImageUploadRepository
@@ -29,10 +31,19 @@ object ImageUploadModule {
 
     @Provides
     @Singleton
+    fun provideMoireEffectClassifier(@ApplicationContext context: Context): MoireEffectClassifier {
+        return MoireEffectClassifier(
+            interpreter = loadMoireModel(context)
+        )
+    }
+
+    @Provides
+    @Singleton
     fun provideImageUploadRepository(
         client: HttpClient,
-        classifier: FatBoxClassifier
+        classifier: FatBoxClassifier,
+        moireEffectClassifier: MoireEffectClassifier
     ): ImageUploadRepository {
-        return ImageUploadRepositoryImpl(client, classifier)
+        return ImageUploadRepositoryImpl(client, classifier, moireEffectClassifier)
     }
 }

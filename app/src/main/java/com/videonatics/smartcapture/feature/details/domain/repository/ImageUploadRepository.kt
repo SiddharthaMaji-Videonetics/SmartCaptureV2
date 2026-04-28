@@ -15,4 +15,5 @@ interface ImageUploadRepository {
 
     suspend fun analyzeImageQuality(bitmap: Bitmap): Result<ImageQualityResult>
     suspend fun classifyImage(bitmap: Bitmap): Result<FatBoxClassifier.Result>
+    suspend fun verifyMoireEffect(bitmap: Bitmap): Flow<Boolean>
 }

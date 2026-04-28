@@ -1,8 +1,8 @@
 package com.videonatics.smartcapture.feature.details.data.repository
 
 import android.graphics.Bitmap
-import android.util.Log
 import com.videonatics.smartcapture.core.Constants
+import com.videonatics.smartcapture.core.MoireEffectClassifier
 import com.videonatics.smartcapture.core.data.safeApiCall
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
 import com.videonatics.smartcapture.feature.details.data.model.ImageQualityAnalyzer
@@ -18,11 +18,15 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class ImageUploadRepositoryImpl @Inject constructor(
     private val client: HttpClient,
-    private val classifier: FatBoxClassifier
+    private val classifier: FatBoxClassifier,
+    private val moireClassifier: MoireEffectClassifier
 ) : ImageUploadRepository {
 
     override suspend fun uploadImage(
@@ -54,8 +58,8 @@ class ImageUploadRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun analyzeImageQuality(bitmap: Bitmap): Result<ImageQualityResult> {
-        return try {
+    override suspend fun analyzeImageQuality(bitmap: Bitmap): Result<ImageQualityResult> = withContext(Dispatchers.Default) {
+        try {
             val result = ImageQualityAnalyzer.analyze(bitmap)
             Result.success(result)
         } catch (e: Exception) {
@@ -63,12 +67,16 @@ class ImageUploadRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun classifyImage(bitmap: Bitmap): Result<FatBoxClassifier.Result> {
-        return try {
+    override suspend fun classifyImage(bitmap: Bitmap): Result<FatBoxClassifier.Result> = withContext(Dispatchers.Default) {
+        try {
             val result = classifier.classify(bitmap)
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun verifyMoireEffect(bitmap: Bitmap): Flow<Boolean> {
+        return moireClassifier.analyze(bitmap)
     }
 }

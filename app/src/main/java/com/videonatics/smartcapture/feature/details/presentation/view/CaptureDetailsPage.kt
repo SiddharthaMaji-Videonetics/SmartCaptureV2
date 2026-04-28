@@ -2,7 +2,6 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -10,7 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -79,6 +77,7 @@ fun CaptureDetailsPage(
     val uploadProgress by viewModel.uploadProgress.collectAsState()
     val qualityState by viewModel.qualityState.collectAsState()
     val classificationState by viewModel.classificationState.collectAsState()
+    val moireState by viewModel.moireState.collectAsState()
 
     val sourceWidth = sharedViewModel.getSourceImageWidth()
     val sourceHeight = sharedViewModel.getSourceImageHeight()
@@ -105,9 +104,11 @@ fun CaptureDetailsPage(
         uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
         classificationResult = (classificationState as? CaptureDetailsViewModel.ClassificationState.Success)?.result,
+        moireResult = (moireState as? CaptureDetailsViewModel.MoireState.Success)?.result,
         onAnalyze = { bitmap ->
             viewModel.analyzeQuality(bitmap)
             viewModel.classifyImage(bitmap)
+            viewModel.verifyImageMoireEffect(bitmap)
         },
         onUploadClick = {
             bmp?.let { viewModel.uploadImage(stageId, it) }
@@ -129,6 +130,7 @@ fun ImageAnalysisPageComponent(
     uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,
     classificationResult: FatBoxClassifier.Result? = null,
+    moireResult: Boolean? = null,
     recentCaptureImagePreCaptures: List<Bitmap> = emptyList(),
     onAnalyze: (Bitmap) -> Unit = {},
     onUploadClick: () -> Unit = {},
@@ -136,8 +138,11 @@ fun ImageAnalysisPageComponent(
 ) {
     var contentType by remember { mutableStateOf("Analyzing...") }
     var quality by remember { mutableStateOf("Analyzing...") }
+    var moireEffect by remember { mutableStateOf("Analyzing...") }
+
     var isContentTypeValid by remember { mutableStateOf(true) }
     var isQualityValid by remember { mutableStateOf(true) }
+    var isMoireValid by remember { mutableStateOf(true) }
 
     var contentTypeOverrideReason by remember { mutableStateOf("") }
     var qualityOverrideReason by remember { mutableStateOf("") }
@@ -167,8 +172,21 @@ fun ImageAnalysisPageComponent(
         }
     }
 
+    LaunchedEffect(moireResult) {
+        moireResult?.let { result ->
+            if(result) {
+                moireEffect = "Moiré Detected"
+                isMoireValid = false
+            } else {
+                moireEffect = "No Moiré Detected"
+                isMoireValid = true
+            }
+        }
+    }
+
     val isUploadEnabled = (isContentTypeValid || contentTypeOverrideReason.isNotBlank()) &&
             (isQualityValid || qualityOverrideReason.isNotBlank()) &&
+            (isMoireValid) &&
             contentType != "Analyzing..." && !isUploading
 
     Scaffold(
@@ -216,7 +234,6 @@ fun ImageAnalysisPageComponent(
                 .padding(paddingValues)
         ) {
             item {
-                // Image Preview Area
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -224,30 +241,22 @@ fun ImageAnalysisPageComponent(
                         .background(Color.Black)
                 ) {
                     if (capturedImage != null && capturedImageBoundingBox != null) {
-//
-//                        val croppedImage = cropBitmapFromNormalizedRect(
-//                            capturedImage,
-//                            capturedImageBoundingBox
-//                        )
-
-
-                        val normalizedRect = capturedImageBoundingBox.toNormalized(imageWidth,imageHeight)
-                       val properRect = normalizedRect.toPixel(capturedImage.width.toFloat(),capturedImage.height.toFloat())
-                        val croppedBmp = cropBitmap(
-                            capturedImage,
-                            properRect
-                        )
-                         croppedBmp?.apply {
-
-                            onAnalyze(croppedBmp)
-                            ZoomableImageWithBoundingBox(
-                                bitmap = capturedImage,
-                                rect = properRect,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        val normalizedRect = capturedImageBoundingBox.toNormalized(imageWidth, imageHeight)
+                        val properRect = normalizedRect.toPixel(capturedImage.width.toFloat(), capturedImage.height.toFloat())
+                        
+                        val croppedBmp = remember(capturedImage, properRect) {
+                            cropBitmap(capturedImage, properRect)
                         }
 
+                        LaunchedEffect(croppedBmp) {
+                            croppedBmp?.let { onAnalyze(it) }
+                        }
 
+                        ZoomableImageWithBoundingBox(
+                            bitmap = capturedImage,
+                            rect = properRect,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
 
                     Icon(
@@ -264,14 +273,13 @@ fun ImageAnalysisPageComponent(
 
             if(recentCaptureImagePreCaptures.isNotEmpty()){
                 item {
-                    // Image Preview Area
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(120.dp)
                     ) {
                         LazyRow() {
-                            itemsIndexed(recentCaptureImagePreCaptures) {i, item->
+                            itemsIndexed(recentCaptureImagePreCaptures) { _, item ->
                                 Card(
                                     modifier = Modifier.padding(5.dp)
                                 ) {
@@ -284,12 +292,9 @@ fun ImageAnalysisPageComponent(
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     }
-
                                 }
                             }
                         }
-
-
                     }
                 }
             }
@@ -323,6 +328,15 @@ fun ImageAnalysisPageComponent(
                         isValid = isQualityValid,
                         overrideReason = qualityOverrideReason,
                         onOverrideReasonChange = { qualityOverrideReason = it }
+                    )
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                    AnalysisField(
+                        label = "Moire Effect Detected",
+                        value = moireEffect,
+                        isValid = isMoireValid,
+                        overrideReason = "",
+                        onOverrideReasonChange = { }
                     )
                 }
             }
@@ -368,7 +382,7 @@ fun AnalysisField(
             }
         }
 
-        if (!isValid && value != "Analyzing...") {
+        if (!isValid && value != "Analyzing..." && label != "Moire Effect Detected") {
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = overrideReason,

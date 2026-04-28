@@ -9,6 +9,7 @@ import com.videonatics.smartcapture.feature.details.domain.repository.ImageUploa
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
@@ -30,6 +31,8 @@ class CaptureDetailsViewModel @Inject constructor(
     private val _classificationState = MutableStateFlow<ClassificationState>(ClassificationState.Idle)
     val classificationState: StateFlow<ClassificationState> = _classificationState
 
+    private val _moireState = MutableStateFlow<MoireState>(MoireState.Idle)
+    val moireState: StateFlow<MoireState> = _moireState
 
 
 
@@ -48,6 +51,15 @@ class CaptureDetailsViewModel @Inject constructor(
             repository.classifyImage(bitmap)
                 .onSuccess { _classificationState.value = ClassificationState.Success(it) }
                 .onFailure { _classificationState.value = ClassificationState.Error(it.message ?: "Classification failed") }
+        }
+    }
+
+    fun verifyImageMoireEffect(bitmap: Bitmap) {
+        viewModelScope.launch {
+            _moireState.value = MoireState.Loading
+            repository.verifyMoireEffect(bitmap).collectLatest {
+                _moireState.value = MoireState.Success(it)
+            }
         }
     }
 
@@ -94,5 +106,12 @@ class CaptureDetailsViewModel @Inject constructor(
         object Loading : ClassificationState()
         data class Success(val result: FatBoxClassifier.Result) : ClassificationState()
         data class Error(val message: String) : ClassificationState()
+    }
+
+    sealed class MoireState {
+        object Idle : MoireState()
+        object Loading : MoireState()
+        data class Success(val result: Boolean) : MoireState()
+        data class Error(val message: String) : MoireState()
     }
 }

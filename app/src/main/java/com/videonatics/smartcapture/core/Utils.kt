@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.PointF
@@ -777,6 +778,18 @@ fun loadFatBoxModel(context: Context): Interpreter {
     })
 }
 
+fun loadMoireModel(context: Context): Interpreter {
+    val mapped = try {
+        loadModelFile(context, "moire_detector.tflite")
+    } catch (e: Exception) {
+        throw RuntimeException("Failed to load moire_detector.tflite. Ensure the file exists in app/src/main/assets/", e)
+    }
+
+    return Interpreter(mapped, Interpreter.Options().apply {
+        setNumThreads(4)
+    })
+}
+
 fun loadFatBoxLabels(context: Context): List<String> {
     return context.assets.open("fatbox_classes.txt")
         .bufferedReader()
@@ -849,4 +862,115 @@ fun ImageProxy.averageLuma(): Float {
     }
 
     return sum.toFloat() / data.size
+}
+
+fun toGrayscale(src: Bitmap): Bitmap {
+    val bmp = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+
+    for (y in 0 until src.height) {
+        for (x in 0 until src.width) {
+            val p = src.getPixel(x, y)
+            val r = Color.red(p)
+            val g = Color.green(p)
+            val b = Color.blue(p)
+
+            val gray = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+            bmp.setPixel(x, y, Color.rgb(gray, gray, gray))
+        }
+    }
+    return bmp
+}
+
+fun haar1D(data: FloatArray): FloatArray {
+    val n = data.size
+    val h = n / 2
+    val out = FloatArray(n)
+
+    for (i in 0 until h) {
+        val k = i * 2
+        val a = data[k]
+        val b = data[k + 1]
+
+        out[i] = 0.5f * (a + b)
+        out[i + h] = 0.5f * (a - b)
+    }
+    return out
+}
+
+fun haar2D(img: Array<FloatArray>): Array<Array<FloatArray>> {
+    val rows = img.size
+    val cols = img[0].size
+
+    // row transform
+    for (r in 0 until rows) {
+        img[r] = haar1D(img[r])
+    }
+
+    // column transform
+    for (c in 0 until cols) {
+        val col = FloatArray(rows) { img[it][c] }
+        val transformed = haar1D(col)
+        for (r in 0 until rows) {
+            img[r][c] = transformed[r]
+        }
+    }
+
+    val hr = rows / 2
+    val hc = cols / 2
+
+    fun extract(r0: Int, c0: Int): Array<FloatArray> {
+        return Array(hr) { r ->
+            FloatArray(hc) { c ->
+                img[r0 + r][c0 + c]
+            }
+        }
+    }
+
+    val ll = extract(0, 0)
+    val lh = extract(0, hc)
+    val hl = extract(hr, 0)
+    val hh = extract(hr, hc)
+
+    return arrayOf(ll, lh, hl, hh)
+}
+
+fun haarDWT(bitmap: Bitmap): Array<Array<Array<FloatArray>>> {
+
+    val w = bitmap.width
+    val h = bitmap.height
+
+    val img = Array(h) { y ->
+        FloatArray(w) { x ->
+            Color.red(bitmap.getPixel(x, y)).toFloat()
+        }
+    }
+
+    val (ll, lh, hl, hh) = haar2D(img)
+
+    return arrayOf(
+        arrayOf(normalize(ll, 0f, 1f)),
+        arrayOf(normalize(lh, -1f, 1f)),
+        arrayOf(normalize(hl, -1f, 1f)),
+        arrayOf(normalize(hh, -1f, 1f))
+    )
+}
+
+fun normalize(mat: Array<FloatArray>, lo: Float, hi: Float): Array<FloatArray> {
+    var mn = Float.MAX_VALUE
+    var mx = -Float.MAX_VALUE
+
+    for (row in mat) {
+        for (v in row) {
+            mn = minOf(mn, v)
+            mx = maxOf(mx, v)
+        }
+    }
+
+    val range = if (mx - mn == 0f) 1f else mx - mn
+
+    return Array(mat.size) { r ->
+        FloatArray(mat[0].size) { c ->
+            lo + (mat[r][c] - mn) / range * (hi - lo)
+        }
+    }
 }
