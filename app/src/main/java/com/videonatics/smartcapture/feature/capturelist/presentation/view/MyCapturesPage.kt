@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,7 +42,11 @@ fun MyCapturesPage(
     MyCapturesContent(
         modifier = modifier,
         captures = captures,
-        onCreateCapture = { navController.navigate("capture") }
+        onCreateCapture = { navController.navigate("capture") },
+        onCaptureClick = { capture ->
+            sharedViewModel.setSelectedCapture(capture)
+            navController.navigate("image_details")
+        }
     )
 }
 
@@ -49,7 +54,8 @@ fun MyCapturesPage(
 private fun MyCapturesContent(
     modifier: Modifier = Modifier,
     captures: List<CaptureModel>,
-    onCreateCapture: () -> Unit = {}
+    onCreateCapture: () -> Unit = {},
+    onCaptureClick: (CaptureModel) -> Unit = {}
 ) {
     Scaffold(
         modifier = modifier,
@@ -81,7 +87,10 @@ private fun MyCapturesContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(captures) { capture ->
-                    CaptureItem(capture = capture)
+                    CaptureItem(
+                        capture = capture,
+                        onClick = { onCaptureClick(capture) }
+                    )
                 }
             }
         }
@@ -89,9 +98,14 @@ private fun MyCapturesContent(
 }
 
 @Composable
-fun CaptureItem(capture: CaptureModel) {
+fun CaptureItem(
+    capture: CaptureModel,
+    onClick: () -> Unit = {}
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

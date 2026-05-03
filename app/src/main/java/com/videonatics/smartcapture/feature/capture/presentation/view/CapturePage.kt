@@ -39,7 +39,6 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
-import com.videonatics.smartcapture.core.LevelSensorHelper
 import com.videonatics.smartcapture.core.LowLightDetector
 import com.videonatics.smartcapture.core.Orientation
 import com.videonatics.smartcapture.core.averageLuma
@@ -49,6 +48,7 @@ import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.toRect
 import com.videonatics.smartcapture.feature.capture.presentation.viewmodel.CaptureViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
@@ -162,13 +162,17 @@ fun CapturePage(
                 onCaptureImage = {
                     viewModel.captureImage()
                 },
-                onFullImageCapture = { rotation, bitmap ->
+                onFullImageCapture = { _, bitmap ->
                     viewModel.captureReset()
-                    sharedViewModel.saveCapturedImage(bitmap)
                     focusedObj?.apply {
                         val rct = this.toRect()
-                        sharedViewModel.saveCapturedImageBoundBox(rct)
+                        val normalizedRct = rct.toNormalized(
+                            sharedViewModel.getSourceImageWidth(),
+                            sharedViewModel.getSourceImageHeight()
+                        )
+                        sharedViewModel.saveCapturedImageBoundBox(normalizedRct)
                     }
+                    sharedViewModel.saveCapturedImage(bitmap)
 
                     navController.navigate("image_details")
                 },
@@ -229,6 +233,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
     var isLevel by remember { mutableStateOf(false) }
 
     Scaffold (
+        modifier = modifier,
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             AnimatedVisibility(visible = isCapturable && !isBoundBoxEdit && isLevel) {
@@ -306,11 +311,10 @@ fun CameraDetectionView(interpreter: Interpreter?,
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
 
     val detector = remember { LowLightDetector() }
-    var isLowLight by remember { mutableStateOf(false) }
 
-    return Box(){
+    return Box {
         var focusBox by remember { mutableStateOf<RectF?>(null) }
-        AnimatedContent(targetState = (interpreter !=null)) {
+        AnimatedContent(targetState = (interpreter !=null), label = "CameraContent") {
             if(it){
                 Box(
                     modifier = Modifier
@@ -408,7 +412,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
 
         }
 
-        Box() {
+        Box {
 
             if(imageWidth>0 && imageHeight >0){
                 FocusBoxOverlay(

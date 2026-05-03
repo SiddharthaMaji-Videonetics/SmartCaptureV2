@@ -724,11 +724,15 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap {
     val planes = image.planes
     if (planes.isEmpty()) throw IllegalArgumentException("ImageProxy has no planes")
 
+    val options = BitmapFactory.Options().apply {
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+
     val bitmap = if (image.format == ImageFormat.JPEG) {
         val buffer = planes[0].buffer
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     } else if (planes.size >= 3) {
         val yBuffer = planes[0].buffer
         val uBuffer = planes[1].buffer
@@ -742,12 +746,12 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap {
         val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
         val out = ByteArrayOutputStream()
         yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 100, out)
-        BitmapFactory.decodeByteArray(out.toByteArray(), 0, out.size())
+        BitmapFactory.decodeByteArray(out.toByteArray(), 0, out.size(), options)
     } else {
         val buffer = planes[0].buffer
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     } ?: throw RuntimeException("Failed to decode bitmap")
 
     val rotationDegrees = image.imageInfo.rotationDegrees

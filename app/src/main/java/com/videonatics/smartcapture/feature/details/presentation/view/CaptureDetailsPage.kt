@@ -56,7 +56,6 @@ import androidx.navigation.NavController
 import com.videonatics.smartcapture.core.cropBitmap
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
-import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.feature.details.FatBoxClassifier
 import com.videonatics.smartcapture.feature.details.data.model.ImageQualityResult
@@ -79,9 +78,6 @@ fun CaptureDetailsPage(
     val classificationState by viewModel.classificationState.collectAsState()
     val moireState by viewModel.moireState.collectAsState()
 
-    val sourceWidth = sharedViewModel.getSourceImageWidth()
-    val sourceHeight = sharedViewModel.getSourceImageHeight()
-
     LaunchedEffect(uploadState) {
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
@@ -98,8 +94,6 @@ fun CaptureDetailsPage(
     ImageAnalysisPageComponent(
         capturedImage = bmp,
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
-        imageWidth = sourceWidth,
-        imageHeight = sourceHeight,
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
         uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
@@ -124,8 +118,6 @@ fun ImageAnalysisPageComponent(
     modifier: Modifier = Modifier,
     capturedImage: Bitmap? = null,
     capturedImageBoundingBox: RectF? = null,
-    imageWidth: Float = 480f,
-    imageHeight: Float = 640f,
     isUploading: Boolean = false,
     uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,
@@ -241,8 +233,8 @@ fun ImageAnalysisPageComponent(
                         .background(Color.Black)
                 ) {
                     if (capturedImage != null && capturedImageBoundingBox != null) {
-                        val normalizedRect = capturedImageBoundingBox.toNormalized(imageWidth, imageHeight)
-                        val properRect = normalizedRect.toPixel(capturedImage.width.toFloat(), capturedImage.height.toFloat())
+                        // Assuming capturedImageBoundingBox is already normalized (0.0 to 1.0)
+                        val properRect = capturedImageBoundingBox.toPixel(capturedImage.width.toFloat(), capturedImage.height.toFloat())
                         
                         val croppedBmp = remember(capturedImage, properRect) {
                             cropBitmap(capturedImage, properRect)

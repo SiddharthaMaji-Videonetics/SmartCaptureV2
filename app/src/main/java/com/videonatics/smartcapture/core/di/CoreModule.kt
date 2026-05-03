@@ -6,6 +6,8 @@ import com.videonatics.smartcapture.core.data.datasource.local.LocalCoreDataSour
 import com.videonatics.smartcapture.core.data.datasource.local.LocalCoreDataSourceImpl
 import com.videonatics.smartcapture.core.data.repository.CoreRepositoryImpl
 import com.videonatics.smartcapture.core.domain.repository.CoreRepository
+import com.videonatics.smartcapture.feature.capturelist.data.repository.CaptureRepositoryImpl
+import com.videonatics.smartcapture.feature.capturelist.domain.repository.CaptureRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -29,6 +31,12 @@ abstract class CoreModule {
     abstract fun bindLocalCoreDataSource(
         localCoreDataSourceImpl: LocalCoreDataSourceImpl
     ): LocalCoreDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindCaptureRepository(
+        captureRepositoryImpl: CaptureRepositoryImpl
+    ): CaptureRepository
 
     companion object {
         @Provides

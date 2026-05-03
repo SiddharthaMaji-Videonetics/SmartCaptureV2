@@ -8,12 +8,16 @@ import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.core.domain.repository.CoreRepository
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
+import com.videonatics.smartcapture.feature.capturelist.domain.repository.CaptureRepository
 import com.videonatics.smartcapture.feature.language.domain.repository.LanguageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -22,7 +26,8 @@ import javax.inject.Inject
 class SharedCoreViewModel @Inject constructor(
     private val coreRepository: CoreRepository,
     private val languageRepository: LanguageRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val captureRepository: CaptureRepository
 ) : ViewModel() {
     private var capturedImage: Bitmap? = null
     private var capturedImageBoundBox: RectF? = null
@@ -36,16 +41,26 @@ class SharedCoreViewModel @Inject constructor(
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
 
-    private val _capturedImagesList = MutableStateFlow<List<CaptureModel>>(emptyList())
-    val capturedImagesList = _capturedImagesList.asStateFlow()
+    val capturedImagesList: StateFlow<List<CaptureModel>> = captureRepository.getAllCaptures()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addCapture(image: Bitmap, boundBox: RectF? = null) {
-        val newCapture = CaptureModel(
-            id = UUID.randomUUID().toString(),
-            image = image,
-            boundBox = boundBox
-        )
-        _capturedImagesList.value = _capturedImagesList.value + newCapture
+        viewModelScope.launch {
+            val newCapture = CaptureModel(
+                id = UUID.randomUUID().toString(),
+                image = image,
+                boundBox = boundBox
+            )
+            captureRepository.saveCapture(newCapture)
+        }
+    }
+
+    fun setSelectedCapture(capture: CaptureModel) {
+        capturedImage = capture.image
+        capturedImageBoundBox = capture.boundBox
+        // When loading from a saved capture, we use the image's own dimensions as source for normalization
+        sourceImageWidth = capture.image.width.toFloat()
+        sourceImageHeight = capture.image.height.toFloat()
     }
 
     private val _recentCaptureImagePreCaptures = mutableListOf<Bitmap>()
