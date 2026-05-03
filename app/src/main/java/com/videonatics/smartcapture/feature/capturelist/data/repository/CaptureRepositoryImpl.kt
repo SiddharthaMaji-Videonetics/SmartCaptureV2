@@ -27,6 +27,7 @@ class CaptureRepositoryImpl @Inject constructor(
             entities.map { entity ->
                 val options = BitmapFactory.Options().apply {
                     inPreferredConfig = Bitmap.Config.ARGB_8888
+                    inScaled = false
                 }
                 val bitmap = BitmapFactory.decodeFile(entity.imagePath, options)
                 CaptureModel(
