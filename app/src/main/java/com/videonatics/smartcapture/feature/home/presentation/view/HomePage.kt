@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +40,7 @@ import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.view.UserHeader
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.feature.capturelist.presentation.view.MyCapturesPage
 import com.videonatics.smartcapture.feature.home.presentation.HomeTab
 import com.videonatics.smartcapture.feature.home.presentation.viewmodel.HomeViewModel
 import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
@@ -88,6 +88,7 @@ fun HomePageComponent(
     val items = listOf(
         HomeTab.Dashboard,
         HomeTab.MyTask,
+        HomeTab.MyCaptures,
         HomeTab.Settings
     )
 
@@ -213,6 +214,9 @@ fun HomeNavHost(
     ) {
         composable(HomeTab.Dashboard.route) { DashboardScreen(sharedViewModel = sharedViewModel, onTaskOpen = onTaskOpen) }
         composable(HomeTab.MyTask.route) { MyTaskScreen(onTaskOpen = onTaskOpen) }
+        composable(HomeTab.MyCaptures.route){
+            MyCapturesPage(navController = rootNavController, sharedViewModel = sharedViewModel)
+        }
         composable(HomeTab.Settings.route) { 
             SettingsPage(navController = rootNavController)
         }

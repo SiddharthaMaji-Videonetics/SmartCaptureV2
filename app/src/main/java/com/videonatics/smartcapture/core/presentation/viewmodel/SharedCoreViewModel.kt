@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.RectF
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.core.domain.repository.CoreRepository
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,19 +36,35 @@ class SharedCoreViewModel @Inject constructor(
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
 
-    private val recentCaptureImagePreCaptureArray = ArrayList<Bitmap>()
+    private val _capturedImagesList = MutableStateFlow<List<CaptureModel>>(emptyList())
+    val capturedImagesList = _capturedImagesList.asStateFlow()
+
+    fun addCapture(image: Bitmap, boundBox: RectF? = null) {
+        val newCapture = CaptureModel(
+            id = UUID.randomUUID().toString(),
+            image = image,
+            boundBox = boundBox
+        )
+        _capturedImagesList.value = _capturedImagesList.value + newCapture
+    }
 
     private val _recentCaptureImagePreCaptures = mutableListOf<Bitmap>()
     val recentCaptureImagePreCaptures: List<Bitmap> = _recentCaptureImagePreCaptures
+    
     fun addRecentCaptureImagePreCapture(image: Bitmap) {
         _recentCaptureImagePreCaptures.add(image)
     }
+    
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
     }
+    
     fun saveCapturedImage(img: Bitmap) {
         capturedImage = img
+        // Also add to the list for MyCapturesPage
+        addCapture(img, capturedImageBoundBox)
     }
+
     fun getCapturedImage(): Bitmap? {
         return capturedImage
     }

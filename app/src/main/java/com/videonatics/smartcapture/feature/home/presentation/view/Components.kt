@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.home.domain.model.*
@@ -132,6 +133,7 @@ fun DashboardContent(
         }
     }
 }
+
 
 @Composable
 fun MyTaskScreen(

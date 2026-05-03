@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
@@ -95,14 +97,14 @@ fun TaskPageComponent(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Rounded.ArrowBackIosNew,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.back),
                             modifier = Modifier.size(20.dp),
                         )
                     }
                 },
                 title = {
                     Text(
-                        text = "Task Detail",
+                        text = stringResource(R.string.task_detail),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -132,7 +134,7 @@ fun TaskPageComponent(
                     }
                     item {
                         Text(
-                            text = "CAPTURE STAGES",
+                            text = stringResource(R.string.capture_stages),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -189,13 +191,20 @@ fun TaskDetailSection(taskDetails: MyTaskModel) {
 
 @Composable
 fun StatusChip(status: String) {
+    val statusText = when (status.uppercase()) {
+        "COMPLETED" -> stringResource(R.string.completed)
+        "IN_PROGRESS" -> stringResource(R.string.in_progress)
+        "PENDING" -> stringResource(R.string.pending)
+        "LOCKED" -> stringResource(R.string.locked)
+        else -> status
+    }
     Box(
         modifier = Modifier
             .background(Color(0xFFE3F2FD), RoundedCornerShape(16.dp))
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Text(
-            text = status,
+            text = statusText,
             color = Color(0xFF1976D2),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
@@ -217,7 +226,11 @@ fun StageItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("STAGE ${stage.order}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(
+                text = stringResource(R.string.stage_label, stage.order),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray
+            )
             Text(
                 text = stage.stageType,
                 fontWeight = FontWeight.Bold,
@@ -227,7 +240,7 @@ fun StageItem(
         if (isLocked) {
             Icon(
                 Icons.Default.Lock,
-                contentDescription = "Locked",
+                contentDescription = stringResource(R.string.locked),
                 tint = Color(0xFFFFCC80),
                 modifier = Modifier.size(20.dp)
             )
