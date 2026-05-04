@@ -166,6 +166,7 @@ fun CapturePage(
                     
                     var normalizedRect: RectF? = null
                     var normalizedCorners: List<PointF>? = null
+                    var boxRotation = 0f
                     
                     focusedObj?.apply {
                         val srcW = sharedViewModel.getSourceImageWidth()
@@ -173,10 +174,12 @@ fun CapturePage(
                         if (srcW > 0 && srcH > 0) {
                             normalizedRect = this.toRect().toNormalized(srcW, srcH)
                             normalizedCorners = this.corners.map { PointF(it.x / srcW, it.y / srcH) }
+                            // Convert radians to degrees for UI display and Compose rotation
+                            boxRotation = Math.toDegrees(this.angle.toDouble()).toFloat()
                         }
                     }
                     
-                    sharedViewModel.saveCapturedImage(bitmap, normalizedRect, normalizedCorners)
+                    sharedViewModel.saveCapturedImage(bitmap, normalizedRect, normalizedCorners, boxRotation)
                     navController.navigate("image_details")
                 },
                 updateCanvasSize = { w, h ->

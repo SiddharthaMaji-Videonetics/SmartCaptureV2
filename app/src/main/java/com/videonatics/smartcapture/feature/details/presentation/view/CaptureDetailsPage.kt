@@ -98,6 +98,7 @@ fun CaptureDetailsPage(
         isUploadVisible = stageId.isNotEmpty(),
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
         capturedImageObbCorners = sharedViewModel.getCapturedImageObbCorners(),
+        rotationAngle = sharedViewModel.getRotationAngle(),
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
         uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
@@ -124,6 +125,7 @@ fun ImageAnalysisPageComponent(
     isUploadVisible: Boolean = false,
     capturedImageBoundingBox: RectF? = null,
     capturedImageObbCorners: List<PointF>? = null,
+    rotationAngle: Float = 0f,
     isUploading: Boolean = false,
     uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,
@@ -261,6 +263,7 @@ fun ImageAnalysisPageComponent(
                             bitmap = capturedImage,
                             rect = properRect,
                             corners = properCorners,
+                            rotationAngle = rotationAngle,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -335,6 +338,17 @@ fun ImageAnalysisPageComponent(
                         overrideReason = qualityOverrideReason,
                         onOverrideReasonChange = { qualityOverrideReason = it }
                     )
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+
+                    AnalysisField(
+                        label = "Rotation",
+                        value = "${rotationAngle.toInt()}°",
+                        isValid = true,
+                        overrideReason = "",
+                        onOverrideReasonChange = { }
+                    )
+
                     HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
 
                     AnalysisField(

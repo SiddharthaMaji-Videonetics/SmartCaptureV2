@@ -34,6 +34,7 @@ fun ZoomableImageWithBoundingBox(
     modifier: Modifier = Modifier,
     rect: RectF? = null,
     corners: List<PointF>? = null,
+    rotationAngle: Float = 0f,
     boxColor: Color = Color.Red,
     strokeWidth: Dp = 3.dp
 ) {
@@ -114,12 +115,16 @@ fun ZoomableImageWithBoundingBox(
                         style = Stroke(width = strokeWidth.toPx() / finalScale)
                     )
                 } else if (rect != null) {
-                    drawRect(
-                        color = boxColor,
-                        topLeft = Offset(rect.left, rect.top),
-                        size = androidx.compose.ui.geometry.Size(rect.width(), rect.height()),
-                        style = Stroke(width = strokeWidth.toPx() / finalScale)
-                    )
+                    withTransform({
+                        rotate(rotationAngle, pivot = Offset(rect.centerX(), rect.centerY()))
+                    }) {
+                        drawRect(
+                            color = boxColor,
+                            topLeft = Offset(rect.left, rect.top),
+                            size = androidx.compose.ui.geometry.Size(rect.width(), rect.height()),
+                            style = Stroke(width = strokeWidth.toPx() / finalScale)
+                        )
+                    }
                 }
             }
         }

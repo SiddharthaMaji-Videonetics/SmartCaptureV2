@@ -47,13 +47,14 @@ class SharedCoreViewModel @Inject constructor(
     val capturedImagesList: StateFlow<List<CaptureModel>> = captureRepository.getAllCaptures()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addCapture(image: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null) {
+    fun addCapture(image: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null, rotation: Float = 0f) {
         viewModelScope.launch {
             val newCapture = CaptureModel(
                 id = UUID.randomUUID().toString(),
                 image = image,
                 boundBox = boundBox,
-                obbCorners = obbCorners
+                obbCorners = obbCorners,
+                rotation = rotation
             )
             captureRepository.saveCapture(newCapture)
         }
@@ -63,6 +64,7 @@ class SharedCoreViewModel @Inject constructor(
         capturedImage = capture.image
         capturedImageBoundBox = capture.boundBox
         capturedImageObbCorners = capture.obbCorners
+        rotationAngle = capture.rotation
         // When loading from a saved capture, we use the image's own dimensions as source for normalization
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
@@ -83,12 +85,13 @@ class SharedCoreViewModel @Inject constructor(
         capturedImageObbCorners = corners
     }
     
-    fun saveCapturedImage(img: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null) {
+    fun saveCapturedImage(img: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null, rotation: Float = 0f) {
         capturedImage = img
         capturedImageBoundBox = boundBox
         capturedImageObbCorners = obbCorners
+        rotationAngle = rotation
         // Also add to the list for MyCapturesPage
-        addCapture(img, boundBox, obbCorners)
+        addCapture(img, boundBox, obbCorners, rotation)
     }
 
     fun getCapturedImage(): Bitmap? {

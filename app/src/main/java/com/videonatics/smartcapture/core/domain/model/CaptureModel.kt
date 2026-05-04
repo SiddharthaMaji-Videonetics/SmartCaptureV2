@@ -10,5 +10,6 @@ data class CaptureModel(
     val timestamp: Long = System.currentTimeMillis(),
     val boundBox: RectF? = null,
     val obbCorners: List<PointF>? = null,
+    val rotation: Float = 0f,
     val hashCode: String = id.split("-").last().uppercase()
 )
