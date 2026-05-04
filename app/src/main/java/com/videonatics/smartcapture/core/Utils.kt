@@ -783,17 +783,17 @@ fun loadFatBoxModel(context: Context): Interpreter {
 }
 
 fun loadMoireModel(context: Context): Interpreter {
-    val mapped = try {
-        loadModelFile(context, "moire_detector.tflite")
-    } catch (e: Exception) {
-        throw RuntimeException("Failed to load moire_detector.tflite. Ensure the file exists in app/src/main/assets/", e)
+    val mapped = loadModelFile(context, "moire_detector.tflite")
+
+    val options = Interpreter.Options().apply {
+        setNumThreads(4)
+
+        //CRITICAL FIX
+        setUseXNNPACK(false)
     }
 
-    return Interpreter(mapped, Interpreter.Options().apply {
-        setNumThreads(4)
-    })
+    return Interpreter(mapped, options)
 }
-
 fun loadFatBoxLabels(context: Context): List<String> {
     return context.assets.open("fatbox_classes.txt")
         .bufferedReader()
@@ -938,43 +938,34 @@ fun haar2D(img: Array<FloatArray>): Array<Array<FloatArray>> {
     return arrayOf(ll, lh, hl, hh)
 }
 
-fun haarDWT(bitmap: Bitmap): Array<Array<Array<FloatArray>>> {
+fun haarDWT(bitmap: Bitmap): Array<Array<FloatArray>> {
 
     val w = bitmap.width
     val h = bitmap.height
 
+    // Convert to float grayscale (0–255)
     val img = Array(h) { y ->
         FloatArray(w) { x ->
             Color.red(bitmap.getPixel(x, y)).toFloat()
         }
     }
 
+    // Haar transform
     val (ll, lh, hl, hh) = haar2D(img)
 
+    // Normalize ALL bands the SAME way (IMPORTANT)
+    fun normalizeSimple(mat: Array<FloatArray>): Array<FloatArray> {
+        return Array(mat.size) { r ->
+            FloatArray(mat[0].size) { c ->
+                mat[r][c] / 255f
+            }
+        }
+    }
+
     return arrayOf(
-        arrayOf(normalize(ll, 0f, 1f)),
-        arrayOf(normalize(lh, -1f, 1f)),
-        arrayOf(normalize(hl, -1f, 1f)),
-        arrayOf(normalize(hh, -1f, 1f))
+        normalizeSimple(ll),
+        normalizeSimple(lh),
+        normalizeSimple(hl),
+        normalizeSimple(hh)
     )
-}
-
-fun normalize(mat: Array<FloatArray>, lo: Float, hi: Float): Array<FloatArray> {
-    var mn = Float.MAX_VALUE
-    var mx = -Float.MAX_VALUE
-
-    for (row in mat) {
-        for (v in row) {
-            mn = minOf(mn, v)
-            mx = maxOf(mx, v)
-        }
-    }
-
-    val range = if (mx - mn == 0f) 1f else mx - mn
-
-    return Array(mat.size) { r ->
-        FloatArray(mat[0].size) { c ->
-            lo + (mat[r][c] - mn) / range * (hi - lo)
-        }
-    }
 }

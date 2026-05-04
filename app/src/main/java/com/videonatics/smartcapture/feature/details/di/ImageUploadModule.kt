@@ -32,8 +32,14 @@ object ImageUploadModule {
     @Provides
     @Singleton
     fun provideMoireEffectClassifier(@ApplicationContext context: Context): MoireEffectClassifier {
+        val interpreter = loadMoireModel(context)
+        val inputShape = interpreter.getInputTensor(0).shape()
+        val outputShape = interpreter.getOutputTensor(0).shape()
+
+        println("INPUT SHAPE: ${inputShape.contentToString()}")
+        println("OUTPUT SHAPE: ${outputShape.contentToString()}")
         return MoireEffectClassifier(
-            interpreter = loadMoireModel(context)
+            interpreter = interpreter
         )
     }
 

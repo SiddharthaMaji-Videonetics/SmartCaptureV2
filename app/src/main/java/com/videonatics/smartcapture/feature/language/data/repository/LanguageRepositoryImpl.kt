@@ -17,9 +17,9 @@ class LanguageRepositoryImpl @Inject constructor(
     private val languages = listOf(
         LanguageModel("English", "en", "🇺🇸"),
         LanguageModel("Hindi", "hi", "🇮🇳"),
-        LanguageModel("Bengali", "bn", "🇮🇳"),
-        LanguageModel("Spanish", "es", "🇪🇸"),
-        LanguageModel("French", "fr", "🇫🇷")
+//        LanguageModel("Bengali", "bn", "🇮🇳"),
+//        LanguageModel("Spanish", "es", "🇪🇸"),
+//        LanguageModel("French", "fr", "🇫🇷")
     )
 
     private val _selectedLanguage = MutableStateFlow(

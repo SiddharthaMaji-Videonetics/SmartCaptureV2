@@ -181,7 +181,7 @@ fun ImageAnalysisPageComponent(
 
     val isUploadEnabled = (isContentTypeValid || contentTypeOverrideReason.isNotBlank()) &&
             (isQualityValid || qualityOverrideReason.isNotBlank()) &&
-            (isMoireValid) &&
+            (isMoireValid || moireEffect != "No Moiré Detected") &&
             contentType != "Analyzing..." && !isUploading
 
     Scaffold(

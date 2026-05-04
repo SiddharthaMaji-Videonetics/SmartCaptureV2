@@ -16,28 +16,31 @@ class MoireAnalyzer(
 
     fun analyze(bitmap: Bitmap): Float {
 
-        // 1. Grayscale
-        val gray = toGrayscale(bitmap)
+        // 1. Resize FIRST (CRITICAL)
+        val resized = Bitmap.createScaledBitmap(bitmap, 1000, 750, true)
 
-        // 2. Proper preprocessing (IMPORTANT)
+        // 2. Grayscale
+        val gray = toGrayscale(resized)
+
+        // 3. Preprocess (if needed)
         val processed = preprocessImg(gray)
 
-        // 3. Haar DWT → shape [4, 375, 500]
-        val input = haarDWT(processed)
+        // 4. Haar DWT → [4, 375, 500]
+        val dwt = haarDWT(processed)
 
-        // 4. Model output MUST match [4, 2]
-        val output = Array(4) { FloatArray(2) }
+        // 5. Add batch → [1, 4, 375, 500]
+        val input = arrayOf(dwt)
+
+        //Correct output shape
+        val output = Array(1) { FloatArray(2) }
 
         interpreter.run(input, output)
 
-        // 5. Aggregate predictions
-        var total = 0f
-        for (i in 0 until 4) {
-            val prob = softmax(output[i])[1] // moire prob
-            total += prob
-        }
+        // 6. Softmax (since backend applies it AFTER)
+        val probs = softmax(output[0])
 
-        return total / 4f
+        // 7. Return moiré probability
+        return probs[1]
     }
 }
 
