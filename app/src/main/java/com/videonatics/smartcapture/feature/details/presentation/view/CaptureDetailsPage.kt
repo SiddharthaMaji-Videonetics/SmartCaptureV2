@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.feature.details.presentation.view
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.RectF
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -94,6 +95,7 @@ fun CaptureDetailsPage(
 
     ImageAnalysisPageComponent(
         capturedImage = bmp,
+        isUploadVisible = stageId.isNotEmpty(),
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
         capturedImageObbCorners = sharedViewModel.getCapturedImageObbCorners(),
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
@@ -119,6 +121,7 @@ fun CaptureDetailsPage(
 fun ImageAnalysisPageComponent(
     modifier: Modifier = Modifier,
     capturedImage: Bitmap? = null,
+    isUploadVisible: Boolean = false,
     capturedImageBoundingBox: RectF? = null,
     capturedImageObbCorners: List<PointF>? = null,
     isUploading: Boolean = false,
@@ -186,6 +189,7 @@ fun ImageAnalysisPageComponent(
 
     Scaffold(
         bottomBar = {
+            if(isUploadVisible){
             BottomAppBar(
             ) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -220,6 +224,7 @@ fun ImageAnalysisPageComponent(
                         }
                     }
                 }
+            }
             }
         }
     ) { paddingValues ->
