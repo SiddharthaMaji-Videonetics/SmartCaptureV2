@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.core.presentation.viewmodel
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,6 +32,7 @@ class SharedCoreViewModel @Inject constructor(
 ) : ViewModel() {
     private var capturedImage: Bitmap? = null
     private var capturedImageBoundBox: RectF? = null
+    private var capturedImageObbCorners: List<PointF>? = null
     private var currentStageId: String? = null
 
     private var sourceImageWidth: Float = 0f
@@ -44,12 +46,13 @@ class SharedCoreViewModel @Inject constructor(
     val capturedImagesList: StateFlow<List<CaptureModel>> = captureRepository.getAllCaptures()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addCapture(image: Bitmap, boundBox: RectF? = null) {
+    fun addCapture(image: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null) {
         viewModelScope.launch {
             val newCapture = CaptureModel(
                 id = UUID.randomUUID().toString(),
                 image = image,
-                boundBox = boundBox
+                boundBox = boundBox,
+                obbCorners = obbCorners
             )
             captureRepository.saveCapture(newCapture)
         }
@@ -58,6 +61,7 @@ class SharedCoreViewModel @Inject constructor(
     fun setSelectedCapture(capture: CaptureModel) {
         capturedImage = capture.image
         capturedImageBoundBox = capture.boundBox
+        capturedImageObbCorners = capture.obbCorners
         // When loading from a saved capture, we use the image's own dimensions as source for normalization
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
@@ -73,11 +77,17 @@ class SharedCoreViewModel @Inject constructor(
     fun saveCapturedImageBoundBox(bBox: RectF) {
         capturedImageBoundBox = bBox
     }
+
+    fun saveCapturedImageObbCorners(corners: List<PointF>) {
+        capturedImageObbCorners = corners
+    }
     
-    fun saveCapturedImage(img: Bitmap) {
+    fun saveCapturedImage(img: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null) {
         capturedImage = img
+        capturedImageBoundBox = boundBox
+        capturedImageObbCorners = obbCorners
         // Also add to the list for MyCapturesPage
-        addCapture(img, capturedImageBoundBox)
+        addCapture(img, boundBox, obbCorners)
     }
 
     fun getCapturedImage(): Bitmap? {
@@ -86,6 +96,10 @@ class SharedCoreViewModel @Inject constructor(
 
     fun getCapturedImageBoundBox(): RectF? {
         return capturedImageBoundBox
+    }
+
+    fun getCapturedImageObbCorners(): List<PointF>? {
+        return capturedImageObbCorners
     }
 
     fun saveCurrentStageId(stageId: String) {

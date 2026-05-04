@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.details.presentation.view
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -94,6 +95,7 @@ fun CaptureDetailsPage(
     ImageAnalysisPageComponent(
         capturedImage = bmp,
         capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
+        capturedImageObbCorners = sharedViewModel.getCapturedImageObbCorners(),
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
         uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
@@ -118,6 +120,7 @@ fun ImageAnalysisPageComponent(
     modifier: Modifier = Modifier,
     capturedImage: Bitmap? = null,
     capturedImageBoundingBox: RectF? = null,
+    capturedImageObbCorners: List<PointF>? = null,
     isUploading: Boolean = false,
     uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,
@@ -233,9 +236,14 @@ fun ImageAnalysisPageComponent(
                         .background(Color.Black)
                 ) {
                     if (capturedImage != null && capturedImageBoundingBox != null) {
-                        // Assuming capturedImageBoundingBox is already normalized (0.0 to 1.0)
+                        // De-normalize the bounding box to pixel coordinates
                         val properRect = capturedImageBoundingBox.toPixel(capturedImage.width.toFloat(), capturedImage.height.toFloat())
                         
+                        // De-normalize the OBB corners to pixel coordinates
+                        val properCorners = capturedImageObbCorners?.map { 
+                            PointF(it.x * capturedImage.width, it.y * capturedImage.height) 
+                        }
+
                         val croppedBmp = remember(capturedImage, properRect) {
                             cropBitmap(capturedImage, properRect)
                         }
@@ -247,6 +255,7 @@ fun ImageAnalysisPageComponent(
                         ZoomableImageWithBoundingBox(
                             bitmap = capturedImage,
                             rect = properRect,
+                            corners = properCorners,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

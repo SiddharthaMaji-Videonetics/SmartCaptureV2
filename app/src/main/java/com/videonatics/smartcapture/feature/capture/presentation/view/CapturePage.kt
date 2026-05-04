@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.capture.presentation.view
 
 import android.Manifest
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
@@ -39,6 +40,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.videonatics.smartcapture.R
+import com.videonatics.smartcapture.core.LevelSensorHelper
 import com.videonatics.smartcapture.core.LowLightDetector
 import com.videonatics.smartcapture.core.Orientation
 import com.videonatics.smartcapture.core.averageLuma
@@ -97,7 +99,6 @@ fun CapturePage(
             var delegate: GpuDelegate? = null
 
             try {
-                // Attempt to initialize with GPU delegate
                 val options = Interpreter.Options()
                 try {
                     delegate = GpuDelegate()
@@ -131,7 +132,6 @@ fun CapturePage(
         }
     }
 
-    //Camera permission
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
 
     LaunchedEffect(Unit) {
@@ -148,7 +148,6 @@ fun CapturePage(
         return
     }
 
-
     when {
         cameraPermissionState.status.isGranted -> {
             CapturePageComponent(
@@ -162,18 +161,22 @@ fun CapturePage(
                 onCaptureImage = {
                     viewModel.captureImage()
                 },
-                onFullImageCapture = { _, bitmap ->
+                onFullImageCapture = { rotation, bitmap ->
                     viewModel.captureReset()
+                    
+                    var normalizedRect: RectF? = null
+                    var normalizedCorners: List<PointF>? = null
+                    
                     focusedObj?.apply {
-                        val rct = this.toRect()
-                        val normalizedRct = rct.toNormalized(
-                            sharedViewModel.getSourceImageWidth(),
-                            sharedViewModel.getSourceImageHeight()
-                        )
-                        sharedViewModel.saveCapturedImageBoundBox(normalizedRct)
+                        val srcW = sharedViewModel.getSourceImageWidth()
+                        val srcH = sharedViewModel.getSourceImageHeight()
+                        if (srcW > 0 && srcH > 0) {
+                            normalizedRect = this.toRect().toNormalized(srcW, srcH)
+                            normalizedCorners = this.corners.map { PointF(it.x / srcW, it.y / srcH) }
+                        }
                     }
-                    sharedViewModel.saveCapturedImage(bitmap)
-
+                    
+                    sharedViewModel.saveCapturedImage(bitmap, normalizedRect, normalizedCorners)
                     navController.navigate("image_details")
                 },
                 updateCanvasSize = { w, h ->
@@ -203,7 +206,6 @@ fun CapturePage(
         }
     }
 
-    //Cleanup
     DisposableEffect(Unit) {
         onDispose {
             interpreter?.close()
@@ -229,11 +231,9 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
                          onDetectionChanges: (List<Detection>) -> Unit = {}) {
     var isBoundBoxEdit by remember { mutableStateOf(false) }
-
     var isLevel by remember { mutableStateOf(false) }
 
     Scaffold (
-        modifier = modifier,
         floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             AnimatedVisibility(visible = isCapturable && !isBoundBoxEdit && isLevel) {
@@ -244,7 +244,6 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                         contentDescription = "Capture Image",)
                 }
             }
-
         }
     ){ paddingValues ->
         var isLowLight by remember { mutableStateOf(false) }
@@ -287,7 +286,6 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 onBoundBoxEdit = { isBoundBoxEdit = it }
             )
         }
-
     }
 }
 
@@ -307,14 +305,12 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         onDetectionChanges: (List<Detection>)-> Unit) {
     var imageWidth by remember { mutableStateOf(0f) }
     var imageHeight by remember { mutableStateOf(0f) }
-
     var detectionList by remember { mutableStateOf<List<Detection>>(emptyList()) }
-
     val detector = remember { LowLightDetector() }
 
-    return Box {
+    return Box(){
         var focusBox by remember { mutableStateOf<RectF?>(null) }
-        AnimatedContent(targetState = (interpreter !=null), label = "CameraContent") {
+        AnimatedContent(targetState = (interpreter !=null)) {
             if(it){
                 Box(
                     modifier = Modifier
@@ -330,19 +326,13 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             if (isProcessing) {
                                 return@CameraPreviewWithImageProxy
                             }
-
                             isProcessing = true
                             val luma = imageProxy.averageLuma()
                             onLightQuality.invoke(detector.update(luma))
-
                             try {
                                 val prep = preprocess(imageProxy, 416)
-
-                                // YOLO11 OBB Output: (1, 6, 3549)
                                 val output = Array(1) { Array(6) { FloatArray(3549) } }
-
                                 interpreter?.run(prep.buffer, output)
-
                                 val finalDetections = parseOutput(
                                     output,
                                     prep.ratio,
@@ -352,13 +342,11 @@ fun CameraDetectionView(interpreter: Interpreter?,
                                     iouThreshold = 0.35f,
                                     imgSize = 416
                                 )
-
                                 detectionList = finalDetections.toList()
                                 onDetectionChanges.invoke(finalDetections)
                                 imageWidth = prep.srcWidth.toFloat()
                                 imageHeight = prep.srcHeight.toFloat()
                                 onImageDimensionsCaptured(imageWidth, imageHeight)
-
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             } finally {
@@ -378,24 +366,19 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         onCanvasSizeChanged = { w, h ->
                             updateCanvasSize.invoke(w, h)
                         },
-
                     )
                     if(focusBox!=null && detectedObjCount>0) {
                         InstructionGuideOverlay(
-                            modifier = Modifier
-                                .fillMaxSize(),
+                            modifier = Modifier.fillMaxSize(),
                             focusBox!!,
                             inst,
-                            )
+                        )
                     }
-
                 }
             }else{
                 Box(modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        color = androidx.compose.ui.graphics.Color(0xFF000000)
-                    ),
+                    .background(color = androidx.compose.ui.graphics.Color(0xFF000000)),
                     contentAlignment = Alignment.Center){
                     Icon(
                         painterResource(R.drawable.ic_videocamera),
@@ -405,27 +388,19 @@ fun CameraDetectionView(interpreter: Interpreter?,
                             .padding(16.dp)
                             .width(64.dp)
                             .height(64.dp)
-
                     )
                 }
             }
-
         }
-
-        Box {
-
+        Box() {
             if(imageWidth>0 && imageHeight >0){
                 FocusBoxOverlay(
                     modifier = Modifier.fillMaxSize(),
                     imageWidth = imageWidth,
                     imageHeight = imageHeight,
                     isEditable = isBoundBoxEdit,
-                    onImageRectChanged = {
-                        onFocusRectRect.invoke(it)
-                    },
-                    onScreenRectChanged = {
-                        focusBox = it
-                    }
+                    onImageRectChanged = { onFocusRectRect.invoke(it) },
+                    onScreenRectChanged = { focusBox = it }
                 )}
         }
     }
@@ -438,9 +413,7 @@ fun CapturePageComponentPreview() {
         CapturePageComponent(
             inst = AlignmentVector(0f, 0f, 0f),
             isCapturable = true,
-            tilt = Orientation(
-                0f,0f,false
-            )
+            tilt = Orientation(0f,0f,false)
         )
     }
 }

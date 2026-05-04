@@ -15,10 +15,8 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,13 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -66,6 +60,7 @@ fun CameraPreviewWithImageProxy(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -78,6 +73,8 @@ fun CameraPreviewWithImageProxy(
 
     val executor = remember { Executors.newSingleThreadExecutor() }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    var activeCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    val preview = remember { Preview.Builder().build() }
 
     LaunchedEffect(torchEnabled) {
         camera?.cameraControl?.enableTorch(torchEnabled)
@@ -86,7 +83,6 @@ fun CameraPreviewWithImageProxy(
     LaunchedEffect(captureTrigger) {
         if (captureTrigger) {
             val mainExecutor = ContextCompat.getMainExecutor(context)
-
             imageCapture?.takePicture(
                 mainExecutor,
                 object : ImageCapture.OnImageCapturedCallback() {
@@ -103,8 +99,7 @@ fun CameraPreviewWithImageProxy(
                     }
 
                     override fun onError(exception: ImageCaptureException) {
-                       exception.printStackTrace()
-                        Log.e("CameraPreview", "Error capturing image: ${exception.message}")
+                        Log.e("CameraPreview", "Error capturing image: ${exception.message}", exception)
                     }
                 }
             )
@@ -114,21 +109,22 @@ fun CameraPreviewWithImageProxy(
     DisposableEffect(Unit) {
         onDispose {
             try {
-                val cameraProvider = cameraProviderFuture.get()
-                cameraProvider.unbindAll()
+                preview.setSurfaceProvider(null)
+                activeCameraProvider?.unbindAll()
             } catch (e: Exception) {
-                Log.e("CameraPreview", "Error unbinding camera", e)
+                Log.e("CameraPreview", "Error during unbinding", e)
             }
             executor.shutdown()
         }
     }
 
     LaunchedEffect(Unit) {
-        val cameraProvider = cameraProviderFuture.get()
-
-        val preview = Preview.Builder().build().apply {
-            surfaceProvider = previewView.surfaceProvider
+        val cameraProvider = ContextCompat.getMainExecutor(context).let { mainExecutor ->
+            cameraProviderFuture.get()
         }
+        activeCameraProvider = cameraProvider
+
+        preview.surfaceProvider = previewView.surfaceProvider
 
         var lastFrameTime = 0L
         var resolutionSent = false
@@ -168,7 +164,6 @@ fun CameraPreviewWithImageProxy(
         imageCapture = capture
         try {
             cameraProvider.unbindAll()
-
             camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -176,7 +171,6 @@ fun CameraPreviewWithImageProxy(
                 imageAnalyzer,
                 capture
             )
-
         } catch (e: Exception) {
             Log.e("CameraPreview", "Use case binding failed", e)
         }
@@ -200,41 +194,30 @@ fun BoundingBoxOverlay(
     onCanvasSizeChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
     Canvas(modifier = modifier) {
-
         val viewW = size.width
         val viewH = size.height
 
         onCanvasSizeChanged(viewW, viewH)
 
-        // FILL_CENTER scaling
-        val scale = maxOf(viewW / imageWidth, viewH / imageHeight)
+        if (imageWidth <= 0f || imageHeight <= 0f) return@Canvas
 
+        val scale = maxOf(viewW / imageWidth, viewH / imageHeight)
         val scaledW = imageWidth * scale
         val scaledH = imageHeight * scale
-
         val dx = (viewW - scaledW) / 2f
         val dy = (viewH - scaledH) / 2f
 
         boxes.forEach { b ->
-
             val color = if (b == focusedObj) Color.Yellow else boxColor
             val stroke = if (b == focusedObj) 2 * strokeWidth else strokeWidth
 
             val path = Path()
-
             b.corners.forEachIndexed { index, pt ->
-
-                // Transform to canvas space
                 val x = pt.x * scale + dx
                 val y = pt.y * scale + dy
-
-                if (index == 0) {
-                    path.moveTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                }
+                if (index == 0) path.moveTo(x, y)
+                else path.lineTo(x, y)
             }
-
             path.close()
 
             drawPath(
@@ -253,17 +236,14 @@ fun ToolbarComponent(
     isBoundBoxEdit: Boolean,
     onBoundBoxEdit: (Boolean) -> Unit = {},
     onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
-    var isBoundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
-    var isFlashOn by remember { mutableStateOf(false) }
+    var boundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
+    var flashOn by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(5.dp)
             .onSizeChanged{
-                onToolbarSize.invoke(
-                    it.width,
-                    it.height
-                )
+                onToolbarSize.invoke(it.width, it.height)
             },
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
@@ -275,34 +255,24 @@ fun ToolbarComponent(
                 .padding(5.dp)
                 .clickable(
                     onClick = {
-                        isBoundBoxEdit = !isBoundBoxEdit
-                        onBoundBoxEdit.invoke(isBoundBoxEdit)
+                        boundBoxEdit = !boundBoxEdit
+                        onBoundBoxEdit.invoke(boundBoxEdit)
                     }),
             contentDescription = "Edit Bounding box",
-            tint = if(isBoundBoxEdit)
-                androidx.compose.ui.graphics.Color(0xFFFF9800) else
-                androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+            tint = if(boundBoxEdit) Color(0xFFFF9800) else Color(0xFFFFFFFF),
+        )
 
+        AnimatedVisibility(visible = isLowLight || flashOn){
+            Icon(
+                painterResource(R.drawable.ic_flash_on),
+                modifier = Modifier.padding(5.dp).clickable(
+                    onClick = {
+                        flashOn = !flashOn
+                        onFlashToggle.invoke(flashOn)
+                    }),
+                contentDescription = "Camera",
+                tint = if(flashOn) Color(0xFFFF9800) else Color(0xFFFFFFFF),
             )
-
-        AnimatedVisibility(visible = isLowLight || isFlashOn){
-            Box(){
-                Icon(
-                    painterResource(R.drawable.ic_flash_on),
-                    modifier = Modifier.padding(5.dp) .clickable(
-                        onClick = {
-                           isFlashOn = !isFlashOn
-                            onFlashToggle.invoke(isFlashOn)
-                        }),
-                    contentDescription = "Camera",
-                    tint = if(isFlashOn)
-                        androidx.compose.ui.graphics.Color(0xFFFF9800) else
-                        androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-
-                    )
-            }
         }
-
-
     }
 }

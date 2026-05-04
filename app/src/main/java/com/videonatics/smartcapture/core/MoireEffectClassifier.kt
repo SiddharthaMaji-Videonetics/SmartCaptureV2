@@ -12,6 +12,6 @@ class MoireEffectClassifier(private val interpreter: Interpreter) {
     fun analyze(bitmap: Bitmap): Flow<Boolean> = flow {
         val analyzer = MoireAnalyzer(interpreter)
         val prob = analyzer.analyze(bitmap)
-        emit(prob > 0.5f)
+        emit(prob > 0.95f)
     }.flowOn(Dispatchers.Default)
 }
