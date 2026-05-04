@@ -164,4 +164,11 @@ class SharedCoreViewModel @Inject constructor(
             _unauthorizedEvent.emit(Unit)
         }
     }
+
+    fun deleteCapturedImage(capture: CaptureModel) {
+        viewModelScope.launch {
+            captureRepository.deleteCapture(capture.id)
+        }
+
+    }
 }

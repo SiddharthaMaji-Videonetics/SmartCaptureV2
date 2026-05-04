@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -46,25 +49,36 @@ fun MyCapturesPage(
         onCaptureClick = { capture ->
             sharedViewModel.setSelectedCapture(capture)
             navController.navigate("image_details")
+        },
+        onDeleteCapture = { capture ->
+            sharedViewModel.deleteCapturedImage(capture)
         }
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MyCapturesContent(
     modifier: Modifier = Modifier,
     captures: List<CaptureModel>,
     onCreateCapture: () -> Unit = {},
-    onCaptureClick: (CaptureModel) -> Unit = {}
+    onCaptureClick: (CaptureModel) -> Unit = {},
+    onDeleteCapture: (CaptureModel) -> Unit = {}
 ) {
+    val shape = RoundedCornerShape(12.dp) // ✅ single source of truth
+
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
             FloatingActionButton(onClick = onCreateCapture) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.create_capture))
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.create_capture)
+                )
             }
         }
     ) { paddingValues ->
+
         if (captures.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -86,10 +100,57 @@ private fun MyCapturesContent(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(captures) { capture ->
-                    CaptureItem(
-                        capture = capture,
-                        onClick = { onCaptureClick(capture) }
+
+                items(
+                    items = captures,
+                    key = { it.id } // ✅ stable key
+                ) { capture ->
+
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                onDeleteCapture(capture)
+                                true
+                            } else false
+                        }
+                    )
+
+                    SwipeToDismissBox(
+                        state = dismissState,
+
+                        // 🔥 CRITICAL FIX
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(shape), // ✅ clips BOTH background + content
+
+                        enableDismissFromStartToEnd = false, // optional: only RTL swipe
+
+                        // 🔴 Background
+                        backgroundContent = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Red)
+                                    .padding(horizontal = 20.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = Color.White
+                                )
+                            }
+                        },
+
+                        // ✅ Foreground (your item)
+                        content = {
+                            CaptureItem(
+                                capture = capture,
+                                shape = shape, // ✅ SAME shape
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { onCaptureClick(capture) }
+                            )
+                        }
                     )
                 }
             }
@@ -100,13 +161,16 @@ private fun MyCapturesContent(
 @Composable
 fun CaptureItem(
     capture: CaptureModel,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(12.dp)
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clip(shape)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        shape = shape,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -134,22 +198,22 @@ fun CaptureItem(
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = "#${capture.hashCode}",
+                        text = "#${capture.hashCode()}",
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = stringResource(R.string.captured_on),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.Gray
                 )
-                
+
                 val date = Date(capture.timestamp)
                 val format = SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.getDefault())
                 Text(
