@@ -1,13 +1,26 @@
 package com.videonatics.smartcapture.core.data.datasource.local
 
 import com.videonatics.smartcapture.core.Pref
+import com.videonatics.smartcapture.ui.theme.ThemeMode
 import javax.inject.Inject
 
 interface LocalCoreDataSource {
+    fun getThemeMode(): ThemeMode
+    fun setThemeMode(themeMode: ThemeMode)
 }
 
 class LocalCoreDataSourceImpl @Inject constructor(
-    val pref: Pref
-) : LocalCoreDataSource{
+    private val pref: Pref
+) : LocalCoreDataSource {
+    override fun getThemeMode(): ThemeMode {
+        return try {
+            ThemeMode.valueOf(pref.themeModePref ?: ThemeMode.LIGHT.name)
+        } catch (e: Exception) {
+            ThemeMode.LIGHT
+        }
+    }
 
+    override fun setThemeMode(themeMode: ThemeMode) {
+        pref.themeModePref = themeMode.name
+    }
 }

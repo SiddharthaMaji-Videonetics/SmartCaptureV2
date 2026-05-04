@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.VideoSettings
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
+import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.feature.settings.presentation.viewmodel.SettingsViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
@@ -56,32 +59,42 @@ fun SettingsPage(
         }
     }
 
+    val parentEntry = remember(navController.currentBackStackEntry) {
+        navController.getBackStackEntry("main_graph")
+    }
+    val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+    val selectedLanguage by sharedViewModel.selectedLanguage.collectAsState()
+
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to logout?") },
+            title = { Text(stringResource(id = R.string.logout)) },
+            text = { Text(stringResource(id = R.string.logout_confirmation)) },
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutDialog = false
                     viewModel.logout()
                 }) {
-                    Text("Logout")
+                    Text(stringResource(id = R.string.logout))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(id = R.string.cancel))
                 }
             }
         )
     }
 
     SettingsPageComponent(
+        selectedLanguageName = selectedLanguage.name,
         onBack = { navController.popBackStack() },
         onLanguageClick = { navController.navigate(PageRoute.LANGUAGE.name) },
         onLogoutClick = {
             showLogoutDialog = true
+        },
+        onCaptureSettingsClick = {
+            navController.navigate(PageRoute.CAPTURE_SETTINGS.name)
         }
     )
 }
@@ -89,9 +102,11 @@ fun SettingsPage(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPageComponent(
+    selectedLanguageName: String = "English",
     onBack: () -> Unit = {},
     onLanguageClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
+    onCaptureSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -123,16 +138,22 @@ fun SettingsPageComponent(
         ) {
             SettingsItem(
                 title = stringResource(id = R.string.language),
+                subtitle = selectedLanguageName,
                 icon = Icons.Default.Language,
                 onClick = onLanguageClick
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             SettingsItem(
-                title = "Logout",
+                title = stringResource(id = R.string.capture_settings),
+                icon = Icons.Default.VideoSettings,
+                onClick = onCaptureSettingsClick
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            SettingsItem(
+                title = stringResource(id = R.string.logout),
                 icon = Icons.AutoMirrored.Filled.Logout,
                 onClick = onLogoutClick
             )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
@@ -140,6 +161,7 @@ fun SettingsPageComponent(
 @Composable
 fun SettingsItem(
     title: String,
+    subtitle: String? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
@@ -158,13 +180,23 @@ fun SettingsItem(
             modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.primary
         )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
+        Column(
             modifier = Modifier
                 .padding(start = 16.dp)
                 .weight(1f)
-        )
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

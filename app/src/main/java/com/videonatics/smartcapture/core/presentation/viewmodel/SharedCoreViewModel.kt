@@ -11,6 +11,7 @@ import com.videonatics.smartcapture.core.domain.repository.CoreRepository
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import com.videonatics.smartcapture.feature.capturelist.domain.repository.CaptureRepository
 import com.videonatics.smartcapture.feature.language.domain.repository.LanguageRepository
+import com.videonatics.smartcapture.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -131,7 +132,11 @@ class SharedCoreViewModel @Inject constructor(
     fun getLongitude(): Double = longitude
 
 
-    var themeMode = coreRepository.getThemeMode()
+    val themeMode = coreRepository.themeMode
+
+    fun setThemeMode(mode: ThemeMode) {
+        coreRepository.setThemeMode(mode)
+    }
 
     val selectedLanguage = languageRepository.getSelectedLanguage()
 

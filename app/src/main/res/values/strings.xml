@@ -41,4 +41,11 @@
     <string name="session_expired">Session Expired</string>
     <string name="session_expired_message">Your session has expired. Please login again.</string>
     <string name="locked">Locked</string>
+    <string name="more_settings">More Settings</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="dark_mode_subtitle">Enable dark theme for the app</string>
+    <string name="auto_flash">Auto Flash</string>
+    <string name="auto_flash_subtitle">Automatically turn on flash in low light</string>
+    <string name="capture_settings">Capture Settings</string>
+    <string name="theme_mode">Theme Mode</string>
 </resources>

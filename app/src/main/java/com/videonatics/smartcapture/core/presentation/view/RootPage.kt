@@ -25,6 +25,7 @@ import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewMo
 import com.videonatics.smartcapture.core.util.LocaleHelper
 import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
+import com.videonatics.smartcapture.feature.moresettings.presentation.view.CaptureSettingPage
 import com.videonatics.smartcapture.feature.details.presentation.view.CaptureDetailsPage
 import com.videonatics.smartcapture.feature.home.presentation.view.HomePage
 import com.videonatics.smartcapture.feature.language.presentation.view.LanguagePage
@@ -53,8 +54,12 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 
                 HandleUnauthorized(sharedViewModel, navController)
 
+                val themeMode by sharedViewModel.themeMode.collectAsStateWithLifecycle()
+
                 LocalizedPage(sharedViewModel) {
-                    onThemeSwitch.invoke(sharedViewModel.themeMode)
+                    LaunchedEffect(themeMode) {
+                        onThemeSwitch.invoke(themeMode)
+                    }
                     SplashPage(navController)
                 }
             }
@@ -143,6 +148,19 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 }
             }
 
+            composable(PageRoute.CAPTURE_SETTINGS.name) {
+                val parentEntry = remember(it) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+
+                HandleUnauthorized(sharedViewModel, navController)
+
+                LocalizedPage(sharedViewModel) {
+                    CaptureSettingPage(navController)
+                }
+            }
+
             composable(PageRoute.LANGUAGE.name) {
                 val parentEntry = remember(it) {
                     navController.getBackStackEntry("main_graph")
@@ -209,5 +227,5 @@ private fun LocalizedPage(
 }
 
 enum class PageRoute {
-    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, DEPTH_CHECK, OCR_SELECT, LANGUAGE
+    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE
 }
