@@ -15,6 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +36,7 @@ import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -41,20 +47,73 @@ fun MyCapturesPage(
     sharedViewModel: SharedCoreViewModel
 ) {
     val captures by sharedViewModel.capturedImagesList.collectAsState()
+    var resetSwipe by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    var pendingDelete by remember { mutableStateOf<CaptureModel?>(null) }
 
     MyCapturesContent(
         modifier = modifier,
         captures = captures,
-        onCreateCapture = { navController.navigate("capture") },
+
+        onCreateCapture = {
+            navController.navigate("capture")
+        },
+
         onCaptureClick = { capture ->
             sharedViewModel.setSelectedCapture(capture)
             navController.navigate("image_details")
         },
-        onDeleteCapture = { capture ->
-            sharedViewModel.deleteCapturedImage(capture)
+
+
+        onDeleteCapture = { capture, reset ->
+            resetSwipe = reset
+            pendingDelete = capture
         }
     )
+
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = {
+                resetSwipe?.invoke()
+                pendingDelete = null
+                               },
+
+            title = {
+                Text("Delete Capture")
+            },
+
+            text = {
+                Text("Are you sure you want to delete this capture?")
+            },
+
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDelete?.let {
+                            sharedViewModel.deleteCapturedImage(it)
+                        }
+                        pendingDelete = null
+                    }
+                ) {
+                    Text("Delete", color = Color.Red)
+                }
+            },
+
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        resetSwipe?.invoke()
+                        pendingDelete = null
+
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,9 +122,9 @@ private fun MyCapturesContent(
     captures: List<CaptureModel>,
     onCreateCapture: () -> Unit = {},
     onCaptureClick: (CaptureModel) -> Unit = {},
-    onDeleteCapture: (CaptureModel) -> Unit = {}
+    onDeleteCapture: (CaptureModel, () -> Unit) -> Unit
 ) {
-    val shape = RoundedCornerShape(12.dp) // ✅ single source of truth
+    val shape = RoundedCornerShape(12.dp)
 
     Scaffold(
         modifier = modifier,
@@ -103,55 +162,61 @@ private fun MyCapturesContent(
 
                 items(
                     items = captures,
-                    key = { it.id } // ✅ stable key
+                    key = { it.id }
                 ) { capture ->
 
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            if (value == SwipeToDismissBoxValue.EndToStart) {
-                                onDeleteCapture(capture)
-                                true
-                            } else false
-                        }
-                    )
+                    //local reset trigger
+                    var resetKey by remember { mutableStateOf(0) }
 
-                    SwipeToDismissBox(
-                        state = dismissState,
+                    key(capture.id, resetKey) {
 
-                        // 🔥 CRITICAL FIX
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(shape), // ✅ clips BOTH background + content
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
 
-                        enableDismissFromStartToEnd = false, // optional: only RTL swipe
+                                    // trigger dialog + provide reset
+                                    onDeleteCapture(capture) {
+                                        resetKey++ // 🔥 forces recomposition → resets swipe
+                                    }
 
-                        // 🔴 Background
-                        backgroundContent = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Red)
-                                    .padding(horizontal = 20.dp),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete",
-                                    tint = Color.White
+                                    false // ❗ prevent auto-dismiss
+                                } else false
+                            }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(shape),
+                            enableDismissFromStartToEnd = false,
+
+                            backgroundContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Red)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = Color.White
+                                    )
+                                }
+                            },
+
+                            content = {
+                                CaptureItem(
+                                    capture = capture,
+                                    shape = shape,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { onCaptureClick(capture) }
                                 )
                             }
-                        },
-
-                        // ✅ Foreground (your item)
-                        content = {
-                            CaptureItem(
-                                capture = capture,
-                                shape = shape, // ✅ SAME shape
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { onCaptureClick(capture) }
-                            )
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -244,14 +309,19 @@ fun CaptureItemPreview() {
 @Composable
 fun MyCapturesPagePreview() {
     val sampleBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+
     val sampleCaptures = listOf(
-        CaptureModel(id = "sample-1", image = sampleBitmap, timestamp = System.currentTimeMillis()),
-        CaptureModel(id = "sample-2", image = sampleBitmap, timestamp = System.currentTimeMillis() - 3600000),
-        CaptureModel(id = "sample-3", image = sampleBitmap, timestamp = System.currentTimeMillis() - 7200000)
+        CaptureModel("sample-1", sampleBitmap, System.currentTimeMillis()),
+        CaptureModel("sample-2", sampleBitmap, System.currentTimeMillis() - 3600000),
+        CaptureModel("sample-3", sampleBitmap, System.currentTimeMillis() - 7200000)
     )
+
     SmartCaptureTheme {
         MyCapturesContent(
-            captures = sampleCaptures
+            captures = sampleCaptures,
+            onCreateCapture = {},
+            onCaptureClick = {},
+            onDeleteCapture = { _, _ -> } // ✅ REQUIRED
         )
     }
 }
@@ -261,7 +331,10 @@ fun MyCapturesPagePreview() {
 fun MyCapturesPageEmptyPreview() {
     SmartCaptureTheme {
         MyCapturesContent(
-            captures = emptyList()
+            captures = emptyList(),
+            onCreateCapture = {},
+            onCaptureClick = {},
+            onDeleteCapture = { _, _ -> } // ✅ REQUIRED
         )
     }
 }
