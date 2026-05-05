@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,11 +51,11 @@ fun MyCapturesPage(
 ) {
     val captures by sharedViewModel.capturedImagesList.collectAsState()
     val currentStageId by sharedViewModel.currentStageId.collectAsStateWithLifecycle()
-    
+    val isAssignmentLoading by sharedViewModel.isAssignmentLoading.collectAsState()
+
     var resetSwipe by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingDelete by remember { mutableStateOf<CaptureModel?>(null) }
 
-    // Clear assignment mode when backing out of the page
     if (currentStageId != null) {
         BackHandler {
             sharedViewModel.saveCurrentStageId(null)
@@ -66,29 +67,27 @@ fun MyCapturesPage(
         modifier = modifier,
         captures = captures,
         isAssignmentMode = currentStageId != null,
+        isLoading = isAssignmentLoading,
         onCreateCapture = {
             navController.navigate("capture")
         },
-
         onCaptureClick = { capture ->
-            if (currentStageId != null) {
-                // Link the capture to the stage and then go to analysis
-                sharedViewModel.updateCaptureWithStage(capture, currentStageId!!)
-                sharedViewModel.setSelectedCapture(capture.copy(stageId = currentStageId))
-                // We keep currentStageId set so DetailsPage can use it for upload
-            } else {
-                sharedViewModel.setSelectedCapture(capture)
+            if (!isAssignmentLoading) {
+                if (currentStageId != null) {
+                    sharedViewModel.updateCaptureWithStage(capture, currentStageId!!)
+                    sharedViewModel.setSelectedCapture(capture.copy(stageId = currentStageId))
+                } else {
+                    sharedViewModel.setSelectedCapture(capture)
+                }
+                navController.navigate("image_details")
             }
-            navController.navigate("image_details")
         },
-
         onDeleteCapture = { capture, reset ->
             resetSwipe = reset
             pendingDelete = capture
         },
         onCancelAssignment = {
             sharedViewModel.saveCurrentStageId(null)
-            // If we are in the assignment flow (navigated from TaskPage), go back
             navController.popBackStack()
         }
     )
@@ -98,15 +97,13 @@ fun MyCapturesPage(
             onDismissRequest = {
                 resetSwipe?.invoke()
                 pendingDelete = null
-                               },
+            },
             title = { Text("Delete Capture") },
             text = { Text("Are you sure you want to delete this capture?") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingDelete?.let {
-                            sharedViewModel.deleteCapturedImage(it)
-                        }
+                        pendingDelete?.let { sharedViewModel.deleteCapturedImage(it) }
                         pendingDelete = null
                     }
                 ) {
@@ -114,12 +111,10 @@ fun MyCapturesPage(
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        resetSwipe?.invoke()
-                        pendingDelete = null
-                    }
-                ) {
+                TextButton(onClick = {
+                    resetSwipe?.invoke()
+                    pendingDelete = null
+                }) {
                     Text("Cancel")
                 }
             }
@@ -127,36 +122,52 @@ fun MyCapturesPage(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MyCapturesContent(
     modifier: Modifier = Modifier,
     captures: List<CaptureModel>,
     isAssignmentMode: Boolean = false,
+    isLoading: Boolean = false,
     onCreateCapture: () -> Unit = {},
     onCaptureClick: (CaptureModel) -> Unit = {},
     onDeleteCapture: (CaptureModel, () -> Unit) -> Unit,
     onCancelAssignment: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(12.dp)
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            if (isAssignmentMode) {
-                TopAppBar(
-                    title = {
+    val assignedCount = captures.count { it.stageId != null }
+    val unassignedCount = captures.count { it.stageId == null }
+
+    val filteredCaptures = when (selectedTab) {
+        1 -> captures.filter { it.stageId != null }
+        2 -> captures.filter { it.stageId == null }
+        else -> captures
+    }
+
+    val emptyMessage = when (selectedTab) {
+        1 -> "No assigned captures"
+        2 -> "No unassigned captures"
+        else -> stringResource(R.string.no_captures_found)
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                Column {
+                    if (isAssignmentMode) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.Assignment, 
+                                    Icons.AutoMirrored.Filled.Assignment,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
@@ -170,7 +181,7 @@ private fun MyCapturesContent(
                                 )
                                 IconButton(onClick = onCancelAssignment) {
                                     Icon(
-                                        Icons.Default.Close, 
+                                        Icons.Default.Close,
                                         contentDescription = "Cancel Assignment",
                                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
@@ -178,93 +189,116 @@ private fun MyCapturesContent(
                             }
                         }
                     }
-                )
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onCreateCapture) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.create_capture)
-                )
-            }
-        }
-    ) { paddingValues ->
-
-        if (captures.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.no_captures_found),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-
-                items(
-                    items = captures,
-                    key = { it.id }
-                ) { capture ->
-
-                    var resetKey by remember { mutableStateOf(0) }
-
-                    key(capture.id, resetKey) {
-
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            confirmValueChange = { value ->
-                                if (value == SwipeToDismissBoxValue.EndToStart) {
-                                    onDeleteCapture(capture) {
-                                        resetKey++
-                                    }
-                                    false
-                                } else false
-                            }
+                    TabRow(selectedTabIndex = selectedTab) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("All (${captures.size})") }
                         )
-
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(shape),
-                            enableDismissFromStartToEnd = false,
-                            backgroundContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Red)
-                                        .padding(horizontal = 20.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = null,
-                                        tint = Color.White
-                                    )
-                                }
-                            },
-                            content = {
-                                CaptureItem(
-                                    capture = capture,
-                                    shape = shape,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = { onCaptureClick(capture) }
-                                )
-                            }
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("Assigned ($assignedCount)") }
+                        )
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            text = { Text("Unassigned ($unassignedCount)") }
                         )
                     }
                 }
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = onCreateCapture) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.create_capture)
+                    )
+                }
+            }
+        ) { paddingValues ->
+            if (filteredCaptures.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = emptyMessage,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = filteredCaptures,
+                        key = { it.id }
+                    ) { capture ->
+                        var resetKey by remember { mutableStateOf(0) }
+
+                        key(capture.id, resetKey) {
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    if (value == SwipeToDismissBoxValue.EndToStart) {
+                                        onDeleteCapture(capture) { resetKey++ }
+                                        false
+                                    } else false
+                                }
+                            )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(shape),
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Red)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = Color.White
+                                        )
+                                    }
+                                },
+                                content = {
+                                    CaptureItem(
+                                        capture = capture,
+                                        shape = shape,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = { onCaptureClick(capture) }
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(enabled = true, onClick = {}),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
             }
         }
     }
@@ -302,9 +336,7 @@ fun CaptureItem(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -318,7 +350,7 @@ fun CaptureItem(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    
+
                     if (capture.stageId != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
@@ -359,13 +391,14 @@ fun CaptureItem(
 @Composable
 fun CaptureItemPreview() {
     val sampleBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
-    val sampleCapture = CaptureModel(
-        id = "sample-id-1234",
-        image = sampleBitmap,
-        timestamp = System.currentTimeMillis()
-    )
     SmartCaptureTheme {
-        CaptureItem(capture = sampleCapture)
+        CaptureItem(
+            capture = CaptureModel(
+                id = "sample-id-1234",
+                image = sampleBitmap,
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 }
 
@@ -373,16 +406,13 @@ fun CaptureItemPreview() {
 @Composable
 fun MyCapturesPagePreview() {
     val sampleBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
-
-    val sampleCaptures = listOf(
-        CaptureModel("sample-1", sampleBitmap, System.currentTimeMillis()),
-        CaptureModel("sample-2", sampleBitmap, System.currentTimeMillis() - 3600000),
-        CaptureModel("sample-3", sampleBitmap, System.currentTimeMillis() - 7200000)
-    )
-
     SmartCaptureTheme {
         MyCapturesContent(
-            captures = sampleCaptures,
+            captures = listOf(
+                CaptureModel("sample-1", sampleBitmap, System.currentTimeMillis()),
+                CaptureModel("sample-2", sampleBitmap, System.currentTimeMillis() - 3600000, stageId = "stage-1"),
+                CaptureModel("sample-3", sampleBitmap, System.currentTimeMillis() - 7200000)
+            ),
             onCreateCapture = {},
             onCaptureClick = {},
             onDeleteCapture = { _, _ -> }

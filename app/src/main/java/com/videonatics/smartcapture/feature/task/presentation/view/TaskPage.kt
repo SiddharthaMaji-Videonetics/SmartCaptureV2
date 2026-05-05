@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +46,7 @@ import androidx.navigation.compose.rememberNavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.feature.task.domain.model.MyTaskModel
 import com.videonatics.smartcapture.feature.task.domain.model.TaskStageModel
 import com.videonatics.smartcapture.feature.task.presentation.viewmodel.TaskViewModel
@@ -60,6 +63,9 @@ fun TaskPage(
     val taskDetails by viewModel.taskDetails.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val capturesList by sharedViewModel.capturedImagesList.collectAsState()
+    val isAssignmentLoading by sharedViewModel.isAssignmentLoading.collectAsState()
+    val assignedByStageId = capturesList.filter { it.stageId != null }.associateBy { it.stageId!! }
 
     LaunchedEffect(taskId) {
         viewModel.loadTaskDetails(taskId)
@@ -69,12 +75,26 @@ fun TaskPage(
         modifier = modifier,
         taskDetails = taskDetails,
         isLoading = isLoading,
+        isAssignmentLoading = isAssignmentLoading,
         error = error,
+        assignedByStageId = assignedByStageId,
         onBack = { navController.popBackStack() },
         onStageClick = { stage, isLocked ->
-            if (!isLocked) {
-                sharedViewModel.saveCurrentStageId(stage.id)
-                navController.navigate(PageRoute.MY_CAPTURES.name)
+            if (!isLocked && !isAssignmentLoading) {
+                val assignedCapture = assignedByStageId[stage.id]
+                if (assignedCapture != null) {
+                    sharedViewModel.saveCurrentStageId(assignedCapture.stageId)
+                    sharedViewModel.setSelectedCapture(assignedCapture)
+                    navController.navigate(PageRoute.IMAGE_DETAILS.name)
+                } else {
+                    sharedViewModel.saveCurrentStageId(stage.id)
+                    navController.navigate(PageRoute.MY_CAPTURES.name)
+                }
+            }
+        },
+        onStageUnassign = { stage ->
+            if (!isAssignmentLoading) {
+                assignedByStageId[stage.id]?.let { sharedViewModel.clearCaptureStage(it) }
             }
         }
     )
@@ -86,9 +106,12 @@ fun TaskPageComponent(
     modifier: Modifier = Modifier,
     taskDetails: MyTaskModel? = null,
     isLoading: Boolean = false,
+    isAssignmentLoading: Boolean = false,
     error: String? = null,
+    assignedByStageId: Map<String, CaptureModel> = emptyMap(),
     onBack: () -> Unit = {},
-    onStageClick: (TaskStageModel, Boolean) -> Unit = { _, _ -> }
+    onStageClick: (TaskStageModel, Boolean) -> Unit = { _, _ -> },
+    onStageUnassign: (TaskStageModel) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -148,10 +171,13 @@ fun TaskPageComponent(
                             taskDetails.stages[index - 1].status == "COMPLETED"
                         }
                         val isLocked = stage.status == "LOCKED" || !isPreviousStageCompleted
+                        val isAssigned = assignedByStageId.containsKey(stage.id)
 
                         StageItem(
                             stage = stage,
                             isLocked = isLocked,
+                            isAssigned = isAssigned,
+                            onUnassign = { onStageUnassign(stage) },
                             onClick = { onStageClick(stage, isLocked) }
                         )
                         HorizontalDivider(
@@ -160,6 +186,18 @@ fun TaskPageComponent(
                             color = Color.LightGray
                         )
                     }
+                }
+            }
+
+            if (isAssignmentLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .clickable(enabled = true, onClick = {}),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -216,6 +254,8 @@ fun StatusChip(status: String) {
 fun StageItem(
     stage: TaskStageModel,
     isLocked: Boolean,
+    isAssigned: Boolean = false,
+    onUnassign: () -> Unit = {},
     onClick: () -> Unit = {}
 ) {
     Row(
@@ -244,6 +284,33 @@ fun StageItem(
                 tint = Color(0xFFFFCC80),
                 modifier = Modifier.size(20.dp)
             )
+        } else if (isAssigned) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFFE8F5E9), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Assigned",
+                        color = Color(0xFF2E7D32),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = onUnassign,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Unassign",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         } else {
             StatusChip(status = stage.status)
         }

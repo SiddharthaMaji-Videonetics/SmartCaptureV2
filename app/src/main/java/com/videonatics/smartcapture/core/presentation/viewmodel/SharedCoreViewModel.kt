@@ -47,6 +47,9 @@ class SharedCoreViewModel @Inject constructor(
     private val _currentStageId = MutableStateFlow<String?>(null)
     val currentStageId = _currentStageId.asStateFlow()
 
+    private val _isAssignmentLoading = MutableStateFlow(false)
+    val isAssignmentLoading = _isAssignmentLoading.asStateFlow()
+
     private var sourceImageWidth: Float = 0f
     private var sourceImageHeight: Float = 0f
 
@@ -77,16 +80,29 @@ class SharedCoreViewModel @Inject constructor(
         _capturedImageObbCorners.value = capture.obbCorners
         _rotationAngle.value = capture.rotation
         _currentStageId.value = capture.stageId
-        
-        // When loading from a saved capture, we use the image's own dimensions as source for normalization
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
     }
 
     fun updateCaptureWithStage(capture: CaptureModel, stageId: String) {
         viewModelScope.launch {
-            val updatedCapture = capture.copy(stageId = stageId)
-            captureRepository.saveCapture(updatedCapture)
+            _isAssignmentLoading.value = true
+            try {
+                captureRepository.saveCapture(capture.copy(stageId = stageId))
+            } finally {
+                _isAssignmentLoading.value = false
+            }
+        }
+    }
+
+    fun clearCaptureStage(capture: CaptureModel) {
+        viewModelScope.launch {
+            _isAssignmentLoading.value = true
+            try {
+                captureRepository.saveCapture(capture.copy(stageId = null))
+            } finally {
+                _isAssignmentLoading.value = false
+            }
         }
     }
 

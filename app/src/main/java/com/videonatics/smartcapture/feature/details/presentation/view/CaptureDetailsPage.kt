@@ -38,6 +38,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -86,6 +87,10 @@ fun CaptureDetailsPage(
     val classificationState by viewModel.classificationState.collectAsState()
     val moireState by viewModel.moireState.collectAsState()
 
+    DisposableEffect(Unit) {
+        onDispose { sharedViewModel.saveCurrentStageId(null) }
+    }
+
     LaunchedEffect(uploadState) {
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
@@ -121,6 +126,7 @@ fun CaptureDetailsPage(
             bmp?.let { viewModel.uploadImage(stageId ?: "", it) }
         },
         onClose = {
+            sharedViewModel.saveCurrentStageId(null)
             navController.popBackStack()
         }
     )
