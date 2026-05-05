@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 import com.videonatics.smartcapture.core.data.local.dao.CaptureDao
 import com.videonatics.smartcapture.core.data.local.entity.CaptureEntity
 
-@Database(entities = [CaptureEntity::class], version = 1, exportSchema = false)
+@Database(entities = [CaptureEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun captureDao(): CaptureDao
 }

@@ -54,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.core.cropBitmap
 import com.videonatics.smartcapture.core.presentation.view.PageRoute
@@ -72,8 +73,13 @@ fun CaptureDetailsPage(
     viewModel: CaptureDetailsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val bmp = sharedViewModel.getCapturedImage()
-    val stageId = sharedViewModel.getCurrentStageId() ?: ""
+    
+    val bmp by sharedViewModel.capturedImage.collectAsStateWithLifecycle()
+    val stageId by sharedViewModel.currentStageId.collectAsStateWithLifecycle()
+    val capturedImageBoundingBox by sharedViewModel.capturedImageBoundBox.collectAsStateWithLifecycle()
+    val capturedImageObbCorners by sharedViewModel.capturedImageObbCorners.collectAsStateWithLifecycle()
+    val rotationAngle by sharedViewModel.rotationAngle.collectAsStateWithLifecycle()
+
     val uploadState by viewModel.uploadState.collectAsState()
     val uploadProgress by viewModel.uploadProgress.collectAsState()
     val qualityState by viewModel.qualityState.collectAsState()
@@ -95,10 +101,10 @@ fun CaptureDetailsPage(
 
     ImageAnalysisPageComponent(
         capturedImage = bmp,
-        isUploadVisible = stageId.isNotEmpty(),
-        capturedImageBoundingBox = sharedViewModel.getCapturedImageBoundBox(),
-        capturedImageObbCorners = sharedViewModel.getCapturedImageObbCorners(),
-        rotationAngle = sharedViewModel.getRotationAngle(),
+        isUploadVisible = !stageId.isNullOrEmpty(),
+        capturedImageBoundingBox = capturedImageBoundingBox,
+        capturedImageObbCorners = capturedImageObbCorners,
+        rotationAngle = rotationAngle,
         isUploading = uploadState is CaptureDetailsViewModel.UploadState.Loading,
         uploadProgress = uploadProgress,
         qualityResult = (qualityState as? CaptureDetailsViewModel.QualityState.Success)?.result,
@@ -110,7 +116,7 @@ fun CaptureDetailsPage(
             viewModel.verifyImageMoireEffect(bitmap)
         },
         onUploadClick = {
-            bmp?.let { viewModel.uploadImage(stageId, it) }
+            bmp?.let { viewModel.uploadImage(stageId ?: "", it) }
         },
         onClose = {
             navController.popBackStack()
@@ -343,8 +349,9 @@ fun ImageAnalysisPageComponent(
 
                     AnalysisField(
                         label = "Rotation",
-                        value = "${rotationAngle.toInt()}°",
-                        isValid = true,
+                        value = "${rotationAngle.toInt()-90}°",
+                        isValid = ( rotationAngle.toInt()-90)<10 &&
+                            ( rotationAngle.toInt()-90)>-10,
                         overrideReason = "",
                         onOverrideReasonChange = { }
                     )

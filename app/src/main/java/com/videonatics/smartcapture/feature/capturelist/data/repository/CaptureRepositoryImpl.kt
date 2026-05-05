@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.feature.capturelist.data.repository
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.PointF
 import android.graphics.RectF
 import com.videonatics.smartcapture.core.data.local.dao.CaptureDao
 import com.videonatics.smartcapture.core.data.local.entity.CaptureEntity
@@ -30,13 +31,27 @@ class CaptureRepositoryImpl @Inject constructor(
                     inScaled = false
                 }
                 val bitmap = BitmapFactory.decodeFile(entity.imagePath, options)
+                
+                val corners = entity.corners?.let { cornersStr ->
+                    try {
+                        cornersStr.split("|").map { pointStr ->
+                            val parts = pointStr.split(",")
+                            PointF(parts[0].toFloat(), parts[1].toFloat())
+                        }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
                 CaptureModel(
                     id = entity.id,
                     image = bitmap ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888),
                     timestamp = entity.timestamp,
                     boundBox = if (entity.left != null && entity.top != null && entity.right != null && entity.bottom != null) {
                         RectF(entity.left, entity.top, entity.right, entity.bottom)
-                    } else null
+                    } else null,
+                    obbCorners = corners,
+                    rotation = entity.rotation ?: 0f
                 )
             }
         }
@@ -45,6 +60,9 @@ class CaptureRepositoryImpl @Inject constructor(
     override suspend fun saveCapture(capture: CaptureModel) {
         withContext(Dispatchers.IO) {
             val imagePath = saveBitmapToFile(capture.image, capture.id)
+            
+            val cornersStr = capture.obbCorners?.joinToString("|") { "${it.x},${it.y}" }
+
             val entity = CaptureEntity(
                 id = capture.id,
                 imagePath = imagePath,
@@ -52,7 +70,9 @@ class CaptureRepositoryImpl @Inject constructor(
                 left = capture.boundBox?.left,
                 top = capture.boundBox?.top,
                 right = capture.boundBox?.right,
-                bottom = capture.boundBox?.bottom
+                bottom = capture.boundBox?.bottom,
+                rotation = capture.rotation,
+                corners = cornersStr
             )
             captureDao.insertCapture(entity)
         }

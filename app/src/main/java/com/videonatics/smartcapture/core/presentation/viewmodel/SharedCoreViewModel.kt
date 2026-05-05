@@ -31,16 +31,26 @@ class SharedCoreViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val captureRepository: CaptureRepository
 ) : ViewModel() {
-    private var capturedImage: Bitmap? = null
-    private var capturedImageBoundBox: RectF? = null
-    private var capturedImageObbCorners: List<PointF>? = null
-    private var currentStageId: String? = null
+
+    private val _capturedImage = MutableStateFlow<Bitmap?>(null)
+    val capturedImage = _capturedImage.asStateFlow()
+
+    private val _capturedImageBoundBox = MutableStateFlow<RectF?>(null)
+    val capturedImageBoundBox = _capturedImageBoundBox.asStateFlow()
+
+    private val _capturedImageObbCorners = MutableStateFlow<List<PointF>?>(null)
+    val capturedImageObbCorners = _capturedImageObbCorners.asStateFlow()
+
+    private val _rotationAngle = MutableStateFlow(0f)
+    val rotationAngle = _rotationAngle.asStateFlow()
+
+    private val _currentStageId = MutableStateFlow<String?>(null)
+    val currentStageId = _currentStageId.asStateFlow()
 
     private var sourceImageWidth: Float = 0f
     private var sourceImageHeight: Float = 0f
 
     private var imageQuality: Float = 0f
-    private var rotationAngle: Float = 0f
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
 
@@ -61,10 +71,11 @@ class SharedCoreViewModel @Inject constructor(
     }
 
     fun setSelectedCapture(capture: CaptureModel) {
-        capturedImage = capture.image
-        capturedImageBoundBox = capture.boundBox
-        capturedImageObbCorners = capture.obbCorners
-        rotationAngle = capture.rotation
+        _capturedImage.value = capture.image
+        _capturedImageBoundBox.value = capture.boundBox
+        _capturedImageObbCorners.value = capture.obbCorners
+        _rotationAngle.value = capture.rotation
+        
         // When loading from a saved capture, we use the image's own dimensions as source for normalization
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
@@ -78,41 +89,32 @@ class SharedCoreViewModel @Inject constructor(
     }
     
     fun saveCapturedImageBoundBox(bBox: RectF) {
-        capturedImageBoundBox = bBox
+        _capturedImageBoundBox.value = bBox
     }
 
     fun saveCapturedImageObbCorners(corners: List<PointF>) {
-        capturedImageObbCorners = corners
+        _capturedImageObbCorners.value = corners
     }
     
     fun saveCapturedImage(img: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null, rotation: Float = 0f) {
-        capturedImage = img
-        capturedImageBoundBox = boundBox
-        capturedImageObbCorners = obbCorners
-        rotationAngle = rotation
+        _capturedImage.value = img
+        _capturedImageBoundBox.value = boundBox
+        _capturedImageObbCorners.value = obbCorners
+        _rotationAngle.value = rotation
+        
         // Also add to the list for MyCapturesPage
         addCapture(img, boundBox, obbCorners, rotation)
     }
 
-    fun getCapturedImage(): Bitmap? {
-        return capturedImage
-    }
-
-    fun getCapturedImageBoundBox(): RectF? {
-        return capturedImageBoundBox
-    }
-
-    fun getCapturedImageObbCorners(): List<PointF>? {
-        return capturedImageObbCorners
-    }
+    fun getCapturedImage(): Bitmap? = _capturedImage.value
+    fun getCapturedImageBoundBox(): RectF? = _capturedImageBoundBox.value
+    fun getCapturedImageObbCorners(): List<PointF>? = _capturedImageObbCorners.value
 
     fun saveCurrentStageId(stageId: String) {
-        currentStageId = stageId
+        _currentStageId.value = stageId
     }
 
-    fun getCurrentStageId(): String? {
-        return currentStageId
-    }
+    fun getCurrentStageId(): String? = _currentStageId.value
 
     fun saveSourceImageDimensions(width: Float, height: Float) {
         sourceImageWidth = width
@@ -124,13 +126,13 @@ class SharedCoreViewModel @Inject constructor(
 
     fun saveMetadata(quality: Float, rotation: Float, lat: Double, lon: Double) {
         imageQuality = quality
-        rotationAngle = rotation
+        _rotationAngle.value = rotation
         latitude = lat
         longitude = lon
     }
 
     fun getImageQuality(): Float = imageQuality
-    fun getRotationAngle(): Float = rotationAngle
+    fun getRotationAngle(): Float = _rotationAngle.value
     fun getLatitude(): Double = latitude
     fun getLongitude(): Double = longitude
 
