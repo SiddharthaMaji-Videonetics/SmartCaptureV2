@@ -14,5 +14,6 @@ data class CaptureEntity(
     @ColumnInfo(name = "right") val right: Float?,
     @ColumnInfo(name = "bottom") val bottom: Float?,
     @ColumnInfo(name = "rotation") val rotation: Float = 0f,
-    @ColumnInfo(name = "corners") val corners: String? = null
+    @ColumnInfo(name = "corners") val corners: String? = null,
+    @ColumnInfo(name = "stageId") val stageId: String? = null
 )

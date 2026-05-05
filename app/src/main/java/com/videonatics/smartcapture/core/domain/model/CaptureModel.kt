@@ -11,5 +11,6 @@ data class CaptureModel(
     val boundBox: RectF? = null,
     val obbCorners: List<PointF>? = null,
     val rotation: Float = 0f,
+    val stageId: String? = null,
     val hashCode: String = id.split("-").last().uppercase()
 )

@@ -57,14 +57,15 @@ class SharedCoreViewModel @Inject constructor(
     val capturedImagesList: StateFlow<List<CaptureModel>> = captureRepository.getAllCaptures()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addCapture(image: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null, rotation: Float = 0f) {
+    fun addCapture(image: Bitmap, boundBox: RectF? = null, obbCorners: List<PointF>? = null, rotation: Float = 0f, stageId: String? = null) {
         viewModelScope.launch {
             val newCapture = CaptureModel(
                 id = UUID.randomUUID().toString(),
                 image = image,
                 boundBox = boundBox,
                 obbCorners = obbCorners,
-                rotation = rotation
+                rotation = rotation,
+                stageId = stageId
             )
             captureRepository.saveCapture(newCapture)
         }
@@ -75,10 +76,18 @@ class SharedCoreViewModel @Inject constructor(
         _capturedImageBoundBox.value = capture.boundBox
         _capturedImageObbCorners.value = capture.obbCorners
         _rotationAngle.value = capture.rotation
+        _currentStageId.value = capture.stageId
         
         // When loading from a saved capture, we use the image's own dimensions as source for normalization
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
+    }
+
+    fun updateCaptureWithStage(capture: CaptureModel, stageId: String) {
+        viewModelScope.launch {
+            val updatedCapture = capture.copy(stageId = stageId)
+            captureRepository.saveCapture(updatedCapture)
+        }
     }
 
     private val _recentCaptureImagePreCaptures = mutableListOf<Bitmap>()
@@ -102,15 +111,16 @@ class SharedCoreViewModel @Inject constructor(
         _capturedImageObbCorners.value = obbCorners
         _rotationAngle.value = rotation
         
+        val stageId = _currentStageId.value
         // Also add to the list for MyCapturesPage
-        addCapture(img, boundBox, obbCorners, rotation)
+        addCapture(img, boundBox, obbCorners, rotation, stageId)
     }
 
     fun getCapturedImage(): Bitmap? = _capturedImage.value
     fun getCapturedImageBoundBox(): RectF? = _capturedImageBoundBox.value
     fun getCapturedImageObbCorners(): List<PointF>? = _capturedImageObbCorners.value
 
-    fun saveCurrentStageId(stageId: String) {
+    fun saveCurrentStageId(stageId: String?) {
         _currentStageId.value = stageId
     }
 

@@ -32,6 +32,7 @@ import com.videonatics.smartcapture.feature.language.presentation.view.LanguageP
 import com.videonatics.smartcapture.feature.settings.presentation.view.SettingsPage
 import com.videonatics.smartcapture.feature.splash.presentation.view.SplashPage
 import com.videonatics.smartcapture.feature.task.presentation.view.TaskPage
+import com.videonatics.smartcapture.feature.capturelist.presentation.view.MyCapturesPage
 import com.videonatics.smartcapture.ui.theme.ThemeMode
 
 @Composable
@@ -173,6 +174,19 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     LanguagePage(navController, sharedViewModel)
                 }
             }
+
+            composable(PageRoute.MY_CAPTURES.name) {
+                val parentEntry = remember(it) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+                
+                HandleUnauthorized(sharedViewModel, navController)
+
+                LocalizedPage(sharedViewModel) {
+                    MyCapturesPage(navController = navController, sharedViewModel = sharedViewModel)
+                }
+            }
         }
     }
 }
@@ -227,5 +241,5 @@ private fun LocalizedPage(
 }
 
 enum class PageRoute {
-    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE
+    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE, MY_CAPTURES
 }
