@@ -214,6 +214,7 @@ fun CapturePage(
             interpreter?.close()
             gpuDelegate?.close()
             sensorHelper.stop()
+            sharedViewModel.clearRecaptureTarget()
         }
     }
 }

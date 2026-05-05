@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -125,6 +126,11 @@ fun CaptureDetailsPage(
         onUploadClick = {
             bmp?.let { viewModel.uploadImage(stageId ?: "", it) }
         },
+        onRecapture = {
+            sharedViewModel.setRecaptureTarget()
+            navController.popBackStack()
+            navController.navigate(PageRoute.CAPTURE.name)
+        },
         onClose = {
             sharedViewModel.saveCurrentStageId(null)
             navController.popBackStack()
@@ -148,6 +154,7 @@ fun ImageAnalysisPageComponent(
     recentCaptureImagePreCaptures: List<Bitmap> = emptyList(),
     onAnalyze: (Bitmap) -> Unit = {},
     onUploadClick: () -> Unit = {},
+    onRecapture: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
     var contentType by remember { mutableStateOf("Analyzing...") }
@@ -205,42 +212,51 @@ fun ImageAnalysisPageComponent(
 
     Scaffold(
         bottomBar = {
-            if(isUploadVisible){
-            BottomAppBar(
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        if (isUploading) {
-                            Text(
-                                text = "Uploading... ${(uploadProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            LinearProgressIndicator(
-                                progress = { uploadProgress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(8.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                            )
-                        } else {
-                            Button(
-                                onClick = onUploadClick,
-                                enabled = isUploadEnabled,
-                                modifier = Modifier.fillMaxWidth()
+            BottomAppBar {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isUploading) {
+                        Text(
+                            text = "Uploading... ${(uploadProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        LinearProgressIndicator(
+                            progress = { uploadProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onRecapture,
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text("Upload")
+                                Text("Recapture")
+                            }
+                            if (isUploadVisible) {
+                                Button(
+                                    onClick = onUploadClick,
+                                    enabled = isUploadEnabled,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Upload")
+                                }
                             }
                         }
                     }
                 }
-            }
             }
         }
     ) { paddingValues ->

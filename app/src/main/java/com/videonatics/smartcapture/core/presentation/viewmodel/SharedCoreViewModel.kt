@@ -50,6 +50,12 @@ class SharedCoreViewModel @Inject constructor(
     private val _isAssignmentLoading = MutableStateFlow(false)
     val isAssignmentLoading = _isAssignmentLoading.asStateFlow()
 
+    private val _selectedCaptureId = MutableStateFlow<String?>(null)
+    val selectedCaptureId = _selectedCaptureId.asStateFlow()
+
+    private val _recaptureTargetId = MutableStateFlow<String?>(null)
+    private val _recaptureTargetStageId = MutableStateFlow<String?>(null)
+
     private var sourceImageWidth: Float = 0f
     private var sourceImageHeight: Float = 0f
 
@@ -80,8 +86,19 @@ class SharedCoreViewModel @Inject constructor(
         _capturedImageObbCorners.value = capture.obbCorners
         _rotationAngle.value = capture.rotation
         _currentStageId.value = capture.stageId
+        _selectedCaptureId.value = capture.id
         sourceImageWidth = capture.image.width.toFloat()
         sourceImageHeight = capture.image.height.toFloat()
+    }
+
+    fun setRecaptureTarget() {
+        _recaptureTargetId.value = _selectedCaptureId.value
+        _recaptureTargetStageId.value = _currentStageId.value
+    }
+
+    fun clearRecaptureTarget() {
+        _recaptureTargetId.value = null
+        _recaptureTargetStageId.value = null
     }
 
     fun updateCaptureWithStage(capture: CaptureModel, stageId: String) {
@@ -126,10 +143,32 @@ class SharedCoreViewModel @Inject constructor(
         _capturedImageBoundBox.value = boundBox
         _capturedImageObbCorners.value = obbCorners
         _rotationAngle.value = rotation
-        
-        val stageId = _currentStageId.value
-        // Also add to the list for MyCapturesPage
-        addCapture(img, boundBox, obbCorners, rotation, stageId)
+
+        val recaptureId = _recaptureTargetId.value
+        val recaptureStageId = _recaptureTargetStageId.value
+
+        val id = recaptureId ?: UUID.randomUUID().toString()
+        val stageId = if (recaptureId != null) recaptureStageId else _currentStageId.value
+
+        _selectedCaptureId.value = id
+        if (recaptureId != null) {
+            _currentStageId.value = stageId
+            _recaptureTargetId.value = null
+            _recaptureTargetStageId.value = null
+        }
+
+        viewModelScope.launch {
+            captureRepository.saveCapture(
+                CaptureModel(
+                    id = id,
+                    image = img,
+                    boundBox = boundBox,
+                    obbCorners = obbCorners,
+                    rotation = rotation,
+                    stageId = stageId
+                )
+            )
+        }
     }
 
     fun getCapturedImage(): Bitmap? = _capturedImage.value
