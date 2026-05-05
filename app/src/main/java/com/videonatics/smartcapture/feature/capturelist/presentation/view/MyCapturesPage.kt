@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -52,6 +54,14 @@ fun MyCapturesPage(
     var resetSwipe by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingDelete by remember { mutableStateOf<CaptureModel?>(null) }
 
+    // Clear assignment mode when backing out of the page
+    if (currentStageId != null) {
+        BackHandler {
+            sharedViewModel.saveCurrentStageId(null)
+            navController.popBackStack()
+        }
+    }
+
     MyCapturesContent(
         modifier = modifier,
         captures = captures,
@@ -62,8 +72,10 @@ fun MyCapturesPage(
 
         onCaptureClick = { capture ->
             if (currentStageId != null) {
+                // Link the capture to the stage and then go to analysis
                 sharedViewModel.updateCaptureWithStage(capture, currentStageId!!)
                 sharedViewModel.setSelectedCapture(capture.copy(stageId = currentStageId))
+                // We keep currentStageId set so DetailsPage can use it for upload
             } else {
                 sharedViewModel.setSelectedCapture(capture)
             }
@@ -73,6 +85,11 @@ fun MyCapturesPage(
         onDeleteCapture = { capture, reset ->
             resetSwipe = reset
             pendingDelete = capture
+        },
+        onCancelAssignment = {
+            sharedViewModel.saveCurrentStageId(null)
+            // If we are in the assignment flow (navigated from TaskPage), go back
+            navController.popBackStack()
         }
     )
 
@@ -119,7 +136,8 @@ private fun MyCapturesContent(
     isAssignmentMode: Boolean = false,
     onCreateCapture: () -> Unit = {},
     onCaptureClick: (CaptureModel) -> Unit = {},
-    onDeleteCapture: (CaptureModel, () -> Unit) -> Unit
+    onDeleteCapture: (CaptureModel, () -> Unit) -> Unit,
+    onCancelAssignment: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(12.dp)
 
@@ -127,23 +145,40 @@ private fun MyCapturesContent(
         modifier = modifier,
         topBar = {
             if (isAssignmentMode) {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Select a capture to assign to this stage",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                TopAppBar(
+                    title = {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Assignment, 
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Select a capture to assign",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = onCancelAssignment) {
+                                    Icon(
+                                        Icons.Default.Close, 
+                                        contentDescription = "Cancel Assignment",
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                        }
                     }
-                }
+                )
             }
         },
         floatingActionButton = {

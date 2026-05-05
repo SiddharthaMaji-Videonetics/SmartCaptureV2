@@ -90,6 +90,8 @@ fun CaptureDetailsPage(
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
                 Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
+                // Clear stage assignment on successful upload
+                sharedViewModel.saveCurrentStageId(null)
                 navController.popBackStack(PageRoute.HOME.name, inclusive = false)
             }
             is CaptureDetailsViewModel.UploadState.Error -> {
@@ -168,7 +170,7 @@ fun ImageAnalysisPageComponent(
 
     LaunchedEffect(classificationResult) {
         classificationResult?.let { it ->
-            if(it.confidence > 0.7) {
+            if(it.confidence > 0.8) {
                 contentType = if (it.label == "FatBoxNot") "Not FatBox" else "FatBox"
                 isContentTypeValid = it.label != "FatBoxNot"
             } else {
@@ -192,7 +194,7 @@ fun ImageAnalysisPageComponent(
 
     val isUploadEnabled = (isContentTypeValid || contentTypeOverrideReason.isNotBlank()) &&
             (isQualityValid || qualityOverrideReason.isNotBlank()) &&
-//            (isMoireValid || moireEffect != "No Moiré Detected") &&
+            //(isMoireValid || moireEffect != "No Moiré Detected") &&
             contentType != "Analyzing..." && !isUploading
 
     Scaffold(
@@ -351,7 +353,7 @@ fun ImageAnalysisPageComponent(
                         label = "Rotation",
                         value = "${rotationAngle.toInt()-90}°",
                         isValid = ( rotationAngle.toInt()-90)<10 &&
-                            ( rotationAngle.toInt()-90)>-10,
+                                ( rotationAngle.toInt()-90)>-10,
                         overrideReason = "",
                         onOverrideReasonChange = { }
                     )
