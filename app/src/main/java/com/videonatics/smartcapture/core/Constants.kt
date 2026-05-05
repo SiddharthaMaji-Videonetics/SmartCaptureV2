@@ -1,7 +1,7 @@
 package com.videonatics.smartcapture.core
 
 object Constants {
-    const val BASE_URL = "https://airtel.videonetics.com:2443/api/v1/"
+    const val BASE_URL = "http://210.89.35.88:2080/api/v1/"
     
     object Endpoints {
         const val LOGIN = "auth/login"
