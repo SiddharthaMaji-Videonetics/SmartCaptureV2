@@ -39,51 +39,64 @@ import com.videonatics.smartcapture.feature.auth.presentation.viewmodel.AuthView
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 @Composable
-fun AuthPage(navController: NavController) {
-    return AuthPageComponent(onLoginSuccess = {
-        navController.navigate("home")
-    })
-}
-
-@Composable
-fun AuthPageComponent(onLoginSuccess: () -> Unit = {},
-                      modifier: Modifier = Modifier) {
-
-    val viewModel = hiltViewModel<AuthViewModel>()
-
+fun AuthPage(navController: NavController, viewModel: AuthViewModel = hiltViewModel()) {
+    // Handle login success navigation
     LaunchedEffect(viewModel.loginSuccess) {
-        viewModel.loginSuccess.collect {
-            if (it) {
-                onLoginSuccess.invoke()
+        viewModel.loginSuccess.collect { success ->
+            if (success) {
+                navController.navigate("home")
             }
         }
     }
-    return Scaffold() {paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize(),
-            contentAlignment = Alignment.Center){
+
+    AuthPageComponent(
+        email = viewModel.email,
+        password = viewModel.password,
+        isLoading = viewModel.isLoading,
+        error = viewModel.error,
+        onEmailChange = { viewModel.email = it },
+        onPasswordChange = { viewModel.password = it },
+        onLoginClick = { viewModel.login() },
+        onTestAuthClick = {
+            viewModel.email = "admin@admin.com"
+            viewModel.password = "admin123"
+            viewModel.login()
+        }
+    )
+}
+
+@Composable
+fun AuthPageComponent(
+    email: String,
+    password: String,
+    isLoading: Boolean,
+    error: String?,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onLoginClick: () -> Unit,
+    onTestAuthClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Scaffold(modifier = modifier) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
             LoginScreenComponent(
-                email = viewModel.email,
-                password = viewModel.password,
-                isLoading = viewModel.isLoading,
-                error = viewModel.error,
-                onEmailChange = {
-                    viewModel.email = it
-                },
-                onPasswordChange = {
-                    viewModel.password = it
-                },
-                onLoginClick = {
-                    viewModel.login()
-                },
-                onTestAuthClick = {
-                    viewModel.email = "admin@admin.com"
-                    viewModel.password = "admin123"
-                    viewModel.login()
-                }
+                email = email,
+                password = password,
+                isLoading = isLoading,
+                error = error,
+                onEmailChange = onEmailChange,
+                onPasswordChange = onPasswordChange,
+                onLoginClick = onLoginClick,
+                onTestAuthClick = onTestAuthClick
             )
         }
-        }
     }
+}
 
 @Composable
 fun LoginScreenComponent(
@@ -196,6 +209,15 @@ fun LoginScreenComponent(
 @Composable
 fun GreetingPreview() {
     SmartCaptureTheme {
-        AuthPageComponent()
+        AuthPageComponent(
+            email = "admin@admin.com",
+            password = "password123",
+            isLoading = false,
+            error = null,
+            onEmailChange = {},
+            onPasswordChange = {},
+            onLoginClick = {},
+            onTestAuthClick = {}
+        )
     }
 }
