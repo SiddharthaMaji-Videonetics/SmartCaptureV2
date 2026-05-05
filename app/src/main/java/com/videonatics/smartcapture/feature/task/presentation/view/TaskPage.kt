@@ -74,7 +74,7 @@ fun TaskPage(
         onStageClick = { stage, isLocked ->
             if (!isLocked) {
                 sharedViewModel.saveCurrentStageId(stage.id)
-                navController.navigate(PageRoute.CAPTURE.name)
+                navController.navigate(PageRoute.MY_CAPTURES.name)
             }
         }
     )

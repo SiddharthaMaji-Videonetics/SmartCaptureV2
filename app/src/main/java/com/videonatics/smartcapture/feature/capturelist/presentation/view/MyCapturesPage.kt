@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -18,7 +19,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,12 +31,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,23 +47,28 @@ fun MyCapturesPage(
     sharedViewModel: SharedCoreViewModel
 ) {
     val captures by sharedViewModel.capturedImagesList.collectAsState()
+    val currentStageId by sharedViewModel.currentStageId.collectAsStateWithLifecycle()
+    
     var resetSwipe by remember { mutableStateOf<(() -> Unit)?>(null) }
-
     var pendingDelete by remember { mutableStateOf<CaptureModel?>(null) }
 
     MyCapturesContent(
         modifier = modifier,
         captures = captures,
-
+        isAssignmentMode = currentStageId != null,
         onCreateCapture = {
             navController.navigate("capture")
         },
 
         onCaptureClick = { capture ->
-            sharedViewModel.setSelectedCapture(capture)
+            if (currentStageId != null) {
+                sharedViewModel.updateCaptureWithStage(capture, currentStageId!!)
+                sharedViewModel.setSelectedCapture(capture.copy(stageId = currentStageId))
+            } else {
+                sharedViewModel.setSelectedCapture(capture)
+            }
             navController.navigate("image_details")
         },
-
 
         onDeleteCapture = { capture, reset ->
             resetSwipe = reset
@@ -77,15 +82,8 @@ fun MyCapturesPage(
                 resetSwipe?.invoke()
                 pendingDelete = null
                                },
-
-            title = {
-                Text("Delete Capture")
-            },
-
-            text = {
-                Text("Are you sure you want to delete this capture?")
-            },
-
+            title = { Text("Delete Capture") },
+            text = { Text("Are you sure you want to delete this capture?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -98,13 +96,11 @@ fun MyCapturesPage(
                     Text("Delete", color = Color.Red)
                 }
             },
-
             dismissButton = {
                 TextButton(
                     onClick = {
                         resetSwipe?.invoke()
                         pendingDelete = null
-
                     }
                 ) {
                     Text("Cancel")
@@ -120,6 +116,7 @@ fun MyCapturesPage(
 private fun MyCapturesContent(
     modifier: Modifier = Modifier,
     captures: List<CaptureModel>,
+    isAssignmentMode: Boolean = false,
     onCreateCapture: () -> Unit = {},
     onCaptureClick: (CaptureModel) -> Unit = {},
     onDeleteCapture: (CaptureModel, () -> Unit) -> Unit
@@ -128,6 +125,27 @@ private fun MyCapturesContent(
 
     Scaffold(
         modifier = modifier,
+        topBar = {
+            if (isAssignmentMode) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Select a capture to assign to this stage",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onCreateCapture) {
                 Icon(
@@ -165,7 +183,6 @@ private fun MyCapturesContent(
                     key = { it.id }
                 ) { capture ->
 
-                    //local reset trigger
                     var resetKey by remember { mutableStateOf(0) }
 
                     key(capture.id, resetKey) {
@@ -173,13 +190,10 @@ private fun MyCapturesContent(
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 if (value == SwipeToDismissBoxValue.EndToStart) {
-
-                                    // trigger dialog + provide reset
                                     onDeleteCapture(capture) {
-                                        resetKey++ // 🔥 forces recomposition → resets swipe
+                                        resetKey++
                                     }
-
-                                    false // ❗ prevent auto-dismiss
+                                    false
                                 } else false
                             }
                         )
@@ -190,7 +204,6 @@ private fun MyCapturesContent(
                                 .fillMaxWidth()
                                 .clip(shape),
                             enableDismissFromStartToEnd = false,
-
                             backgroundContent = {
                                 Box(
                                     modifier = Modifier
@@ -206,7 +219,6 @@ private fun MyCapturesContent(
                                     )
                                 }
                             },
-
                             content = {
                                 CaptureItem(
                                     capture = capture,
@@ -258,17 +270,34 @@ fun CaptureItem(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = "#${capture.hashCode()}",
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "#${capture.hashCode()}",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    if (capture.stageId != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Assigned",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -321,7 +350,7 @@ fun MyCapturesPagePreview() {
             captures = sampleCaptures,
             onCreateCapture = {},
             onCaptureClick = {},
-            onDeleteCapture = { _, _ -> } // ✅ REQUIRED
+            onDeleteCapture = { _, _ -> }
         )
     }
 }
@@ -334,7 +363,7 @@ fun MyCapturesPageEmptyPreview() {
             captures = emptyList(),
             onCreateCapture = {},
             onCaptureClick = {},
-            onDeleteCapture = { _, _ -> } // ✅ REQUIRED
+            onDeleteCapture = { _, _ -> }
         )
     }
 }

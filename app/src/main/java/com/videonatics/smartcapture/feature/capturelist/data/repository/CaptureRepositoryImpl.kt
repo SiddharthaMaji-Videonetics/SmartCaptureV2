@@ -51,7 +51,8 @@ class CaptureRepositoryImpl @Inject constructor(
                         RectF(entity.left, entity.top, entity.right, entity.bottom)
                     } else null,
                     obbCorners = corners,
-                    rotation = entity.rotation ?: 0f
+                    rotation = entity.rotation ?: 0f,
+                    stageId = entity.stageId
                 )
             }
         }
@@ -72,7 +73,8 @@ class CaptureRepositoryImpl @Inject constructor(
                 right = capture.boundBox?.right,
                 bottom = capture.boundBox?.bottom,
                 rotation = capture.rotation,
-                corners = cornersStr
+                corners = cornersStr,
+                stageId = capture.stageId
             )
             captureDao.insertCapture(entity)
         }
