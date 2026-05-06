@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.core.Constants
 import com.videonatics.smartcapture.core.Pref
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +24,9 @@ class AuthViewModel @Inject constructor(
     var password by mutableStateOf(pref.lastPassword)
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+
+    var currentBaseUrl by mutableStateOf(pref.baseUrlPref.ifBlank { Constants.BASE_URL })
+        private set
 
     private val _loginSuccess = MutableSharedFlow<Boolean>()
     val loginSuccess = _loginSuccess.asSharedFlow()
@@ -58,5 +62,15 @@ class AuthViewModel @Inject constructor(
 
             isLoading = false
         }
+    }
+
+    fun updateBaseUrl(newUrl: String) {
+        pref.baseUrlPref = newUrl
+        currentBaseUrl = newUrl
+    }
+
+    fun resetBaseUrl() {
+        pref.baseUrlPref = ""
+        currentBaseUrl = Constants.BASE_URL
     }
 }

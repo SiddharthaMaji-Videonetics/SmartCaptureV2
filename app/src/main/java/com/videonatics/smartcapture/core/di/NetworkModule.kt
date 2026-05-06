@@ -44,7 +44,8 @@ object NetworkModule {
                 })
             }
             defaultRequest {
-                url(Constants.BASE_URL)
+                val baseUrl = pref.baseUrlPref.ifBlank { Constants.BASE_URL }
+                url(baseUrl)
                 contentType(ContentType.Application.Json)
                 pref.accessToken?.let {
                     header("Authorization", "Bearer $it")

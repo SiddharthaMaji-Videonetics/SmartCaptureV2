@@ -8,6 +8,7 @@ class Pref(context: Context) {
 
     companion object {
         private const val THEME_MODE = "theme_mode"
+        private const val BASE_URL = "base_url"
         private const val MODEL_URL = "model_url"
         private const val IS_LOGGED_IN = "is_logged_in"
         private const val ACCESS_TOKEN = "access_token"
@@ -29,6 +30,10 @@ class Pref(context: Context) {
     var themeModePref: String?
         get() = sharedPreferences.getString(THEME_MODE, ThemeMode.LIGHT.toString())
         set(value) = sharedPreferences.edit { putString(THEME_MODE, value) }
+
+    var baseUrlPref: String
+        get() = sharedPreferences.getString(BASE_URL, "") ?: ""
+        set(value) = sharedPreferences.edit { putString(BASE_URL, value) }
 
     var modelUrlPref: String
         get() = sharedPreferences.getString(MODEL_URL, "") ?: ""
