@@ -44,7 +44,7 @@ object NetworkModule {
                 })
             }
             defaultRequest {
-                val baseUrl = pref.baseUrlPref.ifBlank { Constants.BASE_URL }
+                val baseUrl = pref.baseUrlPref.ifBlank { Constants.BASE_URL+ Constants.API_VAR }
                 url(baseUrl)
                 contentType(ContentType.Application.Json)
                 pref.accessToken?.let {

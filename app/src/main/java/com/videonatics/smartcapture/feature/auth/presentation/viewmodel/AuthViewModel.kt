@@ -25,7 +25,7 @@ class AuthViewModel @Inject constructor(
     var isLoading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 
-    var currentBaseUrl by mutableStateOf(pref.baseUrlPref.ifBlank { Constants.BASE_URL })
+    var currentBaseUrl by mutableStateOf(pref.baseUrlPref.ifBlank { Constants.BASE_URL})
         private set
 
     private val _loginSuccess = MutableSharedFlow<Boolean>()
