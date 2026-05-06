@@ -267,7 +267,6 @@ private fun AnalysisContent(
         modifier = Modifier
             .padding(paddingValues)
             .fillMaxSize()
-            .background(Color(0xFFF5F7FA))
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -864,7 +863,9 @@ private fun SectionLabel(text: String) {
 @Preview(showBackground = true, backgroundColor = 0xFFF5F7FA)
 @Composable
 private fun AnalysisPagePreview() {
-    SmartCaptureTheme {
+    SmartCaptureTheme (
+        darkTheme = true,
+    ){
         AnalysisScaffold(
             state = AnalysisUiState(
                 isLoading = false,
