@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.core.util.LocaleHelper
+import com.videonatics.smartcapture.feature.analysis.presenation.view.AnalysisPage
 import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
 import com.videonatics.smartcapture.feature.moresettings.presentation.view.CaptureSettingPage
@@ -180,11 +181,39 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
-                
+
                 HandleUnauthorized(sharedViewModel, navController)
 
                 LocalizedPage(sharedViewModel) {
                     MyCapturesPage(navController = navController, sharedViewModel = sharedViewModel)
+                }
+            }
+
+            composable(
+                route = "${PageRoute.ANALYSIS.name}/{taskId}/{stageId}",
+                arguments = listOf(
+                    navArgument("taskId") { type = NavType.StringType },
+                    navArgument("stageId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+                val stageId = backStackEntry.arguments?.getString("stageId") ?: ""
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+
+                HandleUnauthorized(sharedViewModel, navController)
+
+                LocalizedPage(sharedViewModel) {
+                    AnalysisPage(
+                        onBackClick = { navController.popBackStack() },
+                        onRetake = {
+                            sharedViewModel.saveCurrentTaskId(taskId)
+                            sharedViewModel.saveCurrentStageId(stageId)
+                            navController.navigate(PageRoute.CAPTURE.name)
+                        }
+                    )
                 }
             }
         }
@@ -241,5 +270,5 @@ private fun LocalizedPage(
 }
 
 enum class PageRoute {
-    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE, MY_CAPTURES
+    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE, MY_CAPTURES, ANALYSIS
 }

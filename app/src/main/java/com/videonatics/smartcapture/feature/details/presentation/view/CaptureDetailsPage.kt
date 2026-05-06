@@ -89,16 +89,26 @@ fun CaptureDetailsPage(
     val moireState by viewModel.moireState.collectAsState()
 
     DisposableEffect(Unit) {
-        onDispose { sharedViewModel.saveCurrentStageId(null) }
+        onDispose {
+            sharedViewModel.saveCurrentStageId(null)
+            sharedViewModel.saveCurrentTaskId(null)
+        }
     }
 
     LaunchedEffect(uploadState) {
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
+                // Snapshot before clearing
+                val uploadedStageId = sharedViewModel.currentStageId.value
+                val uploadedTaskId = sharedViewModel.currentTaskId.value
                 Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
-                // Clear stage assignment on successful upload
+                sharedViewModel.deassignCurrentCapture()
                 sharedViewModel.saveCurrentStageId(null)
+                sharedViewModel.saveCurrentTaskId(null)
                 navController.popBackStack(PageRoute.HOME.name, inclusive = false)
+                if (!uploadedTaskId.isNullOrEmpty() && !uploadedStageId.isNullOrEmpty()) {
+                    navController.navigate("${PageRoute.ANALYSIS.name}/$uploadedTaskId/$uploadedStageId")
+                }
             }
             is CaptureDetailsViewModel.UploadState.Error -> {
                 Toast.makeText(context, (uploadState as CaptureDetailsViewModel.UploadState.Error).message, Toast.LENGTH_LONG).show()

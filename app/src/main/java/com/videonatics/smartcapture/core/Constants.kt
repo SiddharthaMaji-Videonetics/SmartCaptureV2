@@ -13,5 +13,9 @@ object Constants {
         const val DASHBOARD = "dashboard"
         const val ME = "auth/me"
         const val UPLOAD_IMAGE = "upload/stages/"
+        const val VALIDATED_CHECKS = "validated-checks"
+        const val VALIDATE_CHECK = "validate"
+        const val EDIT_CHECKPOINT = "pipeline/checkpoints"
+        const val GATE_OVERRIDE = "gate-override"
     }
 }

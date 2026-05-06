@@ -81,14 +81,21 @@ fun TaskPage(
         onBack = { navController.popBackStack() },
         onStageClick = { stage, isLocked ->
             if (!isLocked && !isAssignmentLoading) {
-                val assignedCapture = assignedByStageId[stage.id]
-                if (assignedCapture != null) {
-                    sharedViewModel.saveCurrentStageId(assignedCapture.stageId)
-                    sharedViewModel.setSelectedCapture(assignedCapture)
-                    navController.navigate(PageRoute.IMAGE_DETAILS.name)
+                val stageStatus = stage.status.uppercase()
+                if (stageStatus == "IN_PROGRESS" || stageStatus == "COMPLETED") {
+                    navController.navigate("${PageRoute.ANALYSIS.name}/$taskId/${stage.id}")
                 } else {
-                    sharedViewModel.saveCurrentStageId(stage.id)
-                    navController.navigate(PageRoute.MY_CAPTURES.name)
+                    val assignedCapture = assignedByStageId[stage.id]
+                    if (assignedCapture != null) {
+                        sharedViewModel.saveCurrentTaskId(taskId)
+                        sharedViewModel.saveCurrentStageId(assignedCapture.stageId)
+                        sharedViewModel.setSelectedCapture(assignedCapture)
+                        navController.navigate(PageRoute.IMAGE_DETAILS.name)
+                    } else {
+                        sharedViewModel.saveCurrentTaskId(taskId)
+                        sharedViewModel.saveCurrentStageId(stage.id)
+                        navController.navigate(PageRoute.MY_CAPTURES.name)
+                    }
                 }
             }
         },

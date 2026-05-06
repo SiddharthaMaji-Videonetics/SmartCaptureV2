@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -40,6 +41,22 @@ suspend inline fun <reified B, reified R> HttpClient.safePost(
 ): Result<R> = safeApiCall(
     call = {
         post(endpoint) {
+            setBody(body)
+        }
+    },
+    map = { map(it) }
+)
+
+/**
+ * Extension for simple PATCH requests
+ */
+suspend inline fun <reified B, reified R> HttpClient.safePatch(
+    endpoint: String,
+    body: B,
+    crossinline map: suspend (HttpResponse) -> R
+): Result<R> = safeApiCall(
+    call = {
+        patch(endpoint) {
             setBody(body)
         }
     },

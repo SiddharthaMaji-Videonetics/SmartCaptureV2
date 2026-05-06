@@ -47,6 +47,9 @@ class SharedCoreViewModel @Inject constructor(
     private val _currentStageId = MutableStateFlow<String?>(null)
     val currentStageId = _currentStageId.asStateFlow()
 
+    private val _currentTaskId = MutableStateFlow<String?>(null)
+    val currentTaskId = _currentTaskId.asStateFlow()
+
     private val _isAssignmentLoading = MutableStateFlow(false)
     val isAssignmentLoading = _isAssignmentLoading.asStateFlow()
 
@@ -180,6 +183,19 @@ class SharedCoreViewModel @Inject constructor(
     }
 
     fun getCurrentStageId(): String? = _currentStageId.value
+
+    fun saveCurrentTaskId(taskId: String?) {
+        _currentTaskId.value = taskId
+    }
+
+    fun deassignCurrentCapture() {
+        val captureId = _selectedCaptureId.value ?: return
+        viewModelScope.launch {
+            capturedImagesList.value.find { it.id == captureId }?.let {
+                captureRepository.saveCapture(it.copy(stageId = null))
+            }
+        }
+    }
 
     fun saveSourceImageDimensions(width: Float, height: Float) {
         sourceImageWidth = width
