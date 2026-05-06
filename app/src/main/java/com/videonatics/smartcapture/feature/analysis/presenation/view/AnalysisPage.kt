@@ -98,19 +98,19 @@ fun AnalysisPage(
 
             // Guardrail Checks Section
             AnalysisSectionCard(
-                title = "GUARDRAIL CHECKS",
+                title = "ANALYSIS",
                 items = listOf(
-                    AnalysisItemData("box_visibility", AnalysisStatus.PASSED, "All edges of the asset are clearly visible"),
-                    AnalysisItemData("adequate_size", AnalysisStatus.PASSED, "Asset occupies adequate area in the frame"),
-                    AnalysisItemData("image_clarity", AnalysisStatus.PASSED, "Image is sharp and clear"),
-                    AnalysisItemData("lighting_quality", AnalysisStatus.PASSED, "Lighting is adequate"),
-                    AnalysisItemData("box_orientation", AnalysisStatus.PASSED, "Asset orientation is acceptable")
+                    AnalysisItemData("Box Status", AnalysisStatus.PASSED, "All edges of the asset are clearly visible"),
+                    AnalysisItemData("FAT ID", AnalysisStatus.PASSED, "Asset occupies adequate area in the frame"),
+                    AnalysisItemData("Variant", AnalysisStatus.PASSED, "Image is sharp and clear"),
+                    AnalysisItemData("Condition", AnalysisStatus.PASSED, "Lighting is adequate"),
+                    AnalysisItemData("Wiring", AnalysisStatus.PASSED, "Asset orientation is acceptable")
                 )
             )
 
-            // GTH Analysis Section
+            // Previous Attempts
             AnalysisSectionCard(
-                title = "GTH ANALYSIS",
+                title = "PREVIOUS ATTEMPTS",
                 items = listOf(
                     AnalysisItemData(
                         "live_photo_verify",
