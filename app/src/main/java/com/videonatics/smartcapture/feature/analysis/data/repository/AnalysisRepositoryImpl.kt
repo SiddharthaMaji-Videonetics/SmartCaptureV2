@@ -18,8 +18,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
+import javax.inject.Inject
 
-class AnalysisRepositoryImpl(
+class AnalysisRepositoryImpl @Inject constructor(
     private val remoteDataSource: AnalysisRemoteDataSource
 ) : AnalysisRepository {
 
