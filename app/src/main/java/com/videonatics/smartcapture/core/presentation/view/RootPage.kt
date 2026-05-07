@@ -1,5 +1,6 @@
 package com.videonatics.smartcapture.core.presentation.view
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -12,6 +13,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -22,10 +24,13 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.toNormalized
+import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.core.util.LocaleHelper
 import com.videonatics.smartcapture.feature.analysis.presenation.view.AnalysisPage
 import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
+import com.videonatics.smartcapture.feature.capturelist.presentation.view.ImageEditorPage
 import com.videonatics.smartcapture.feature.moresettings.presentation.view.CaptureSettingPage
 import com.videonatics.smartcapture.feature.details.presentation.view.CaptureDetailsPage
 import com.videonatics.smartcapture.feature.home.presentation.view.HomePage
@@ -216,9 +221,38 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     )
                 }
             }
+
+            composable(
+                route = "${PageRoute.IMAGE_EDITOR.name}/{imgUri}",
+                arguments = listOf(
+                    navArgument("imgUri") { type = NavType.StringType },
+                )
+            ) { backStackEntry ->
+
+                val encodedUri =
+                    backStackEntry.arguments?.getString("imgUri")
+                val imageUri = Uri.decode(encodedUri ?: "")
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+
+                HandleUnauthorized(sharedViewModel, navController)
+
+                LocalizedPage(sharedViewModel) {
+                    ImageEditorPage(onBack = { navController.popBackStack() },
+                        imgUri = imageUri.toUri(),
+                        onCrop = {fullImg, croppedImg,boundBox ->
+                            sharedViewModel.saveCapturedImage(fullImg, boundBox, rotation = 90f)
+                            navController.popBackStack() })
+                }
+            }
+
         }
     }
 }
+
+
 
 @Composable
 fun HandleUnauthorized(sharedViewModel: SharedCoreViewModel, navController: androidx.navigation.NavController) {
@@ -270,5 +304,5 @@ private fun LocalizedPage(
 }
 
 enum class PageRoute {
-    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, OCR_SELECT, LANGUAGE, MY_CAPTURES, ANALYSIS
+    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, IMAGE_EDITOR, LANGUAGE, MY_CAPTURES, ANALYSIS
 }

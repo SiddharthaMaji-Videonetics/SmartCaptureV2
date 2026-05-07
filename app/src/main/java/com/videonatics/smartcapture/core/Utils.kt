@@ -4,11 +4,15 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.YuvImage
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.camera.core.ImageProxy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -17,6 +21,7 @@ import com.videonatics.smartcapture.core.domain.model.AlignmentVector
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.domain.model.PreprocessResult
 import com.videonatics.smartcapture.feature.capture.presentation.view.DragMode
+import com.videonatics.smartcapture.feature.capturelist.domain.model.CropRect
 import org.tensorflow.lite.Interpreter
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
@@ -25,6 +30,7 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import kotlin.math.abs
+import kotlin.math.min
 
 fun ImageProxy.toBitmap(): Bitmap? {
     return try {
@@ -968,4 +974,81 @@ fun haarDWT(bitmap: Bitmap): Array<Array<FloatArray>> {
         normalizeSimple(hl),
         normalizeSimple(hh)
     )
+}
+
+fun cropBitmapFromRect(
+    originalBitmap: Bitmap,
+    cropRect: CropRect,
+    containerWidth: Float,
+    containerHeight: Float
+): Bitmap {
+
+    val bitmapWidth = originalBitmap.width.toFloat()
+    val bitmapHeight = originalBitmap.height.toFloat()
+
+    // Image scale inside ContentScale.Fit
+    val scale = min(
+        containerWidth / bitmapWidth,
+        containerHeight / bitmapHeight
+    )
+
+    val displayedImageWidth = bitmapWidth * scale
+    val displayedImageHeight = bitmapHeight * scale
+
+    val imageOffsetX = (containerWidth - displayedImageWidth) / 2f
+    val imageOffsetY = (containerHeight - displayedImageHeight) / 2f
+
+    // Convert crop rect from screen → bitmap coordinates
+    val left = ((cropRect.left - imageOffsetX) / scale)
+        .toInt()
+        .coerceIn(0, originalBitmap.width - 1)
+
+    val top = ((cropRect.top - imageOffsetY) / scale)
+        .toInt()
+        .coerceIn(0, originalBitmap.height - 1)
+
+    val right = ((cropRect.right - imageOffsetX) / scale)
+        .toInt()
+        .coerceIn(1, originalBitmap.width)
+
+    val bottom = ((cropRect.bottom - imageOffsetY) / scale)
+        .toInt()
+        .coerceIn(1, originalBitmap.height)
+
+    val width = (right - left)
+        .coerceAtLeast(1)
+
+    val height = (bottom - top)
+        .coerceAtLeast(1)
+
+    return Bitmap.createBitmap(
+        originalBitmap,
+        left,
+        top,
+        width,
+        height
+    )
+}
+
+fun uriToBitmap(
+    context: Context,
+    uri: Uri
+): Bitmap {
+
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+
+        val source = ImageDecoder.createSource(
+            context.contentResolver,
+            uri
+        )
+
+        ImageDecoder.decodeBitmap(source)
+
+    } else {
+
+        MediaStore.Images.Media.getBitmap(
+            context.contentResolver,
+            uri
+        )
+    }
 }

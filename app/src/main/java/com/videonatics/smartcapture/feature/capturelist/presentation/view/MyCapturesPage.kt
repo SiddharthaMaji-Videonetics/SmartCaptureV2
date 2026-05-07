@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,7 +40,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
 import com.videonatics.smartcapture.core.domain.model.CaptureModel
+import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
+import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -49,6 +53,10 @@ fun MyCapturesPage(
     navController: NavController,
     sharedViewModel: SharedCoreViewModel
 ) {
+    val context = LocalContext.current
+    val showCaptureChooseBottomSheet = remember {
+        mutableStateOf(false)
+    }
     val captures by sharedViewModel.capturedImagesList.collectAsState()
     val currentStageId by sharedViewModel.currentStageId.collectAsStateWithLifecycle()
     val isAssignmentLoading by sharedViewModel.isAssignmentLoading.collectAsState()
@@ -69,7 +77,7 @@ fun MyCapturesPage(
         isAssignmentMode = currentStageId != null,
         isLoading = isAssignmentLoading,
         onCreateCapture = {
-            navController.navigate("capture")
+            showCaptureChooseBottomSheet.value = true
         },
         onCaptureClick = { capture ->
             if (!isAssignmentLoading) {
@@ -91,7 +99,21 @@ fun MyCapturesPage(
             navController.popBackStack()
         }
     )
-
+    ImagePickerBottomSheet(
+        showSheet = showCaptureChooseBottomSheet.value,
+        onDismiss = {
+            showCaptureChooseBottomSheet.value = false
+        },
+        onImageSelected = { uri ->
+            // Gallery image selected
+            val encodedUri = Uri.encode(uri.toString())
+            navController.navigate("${PageRoute.IMAGE_EDITOR.name}/${encodedUri}")
+        },
+        onCaptureImage = {
+            // Open Camera Screen
+            navController.navigate("capture")
+        }
+    )
     if (pendingDelete != null) {
         AlertDialog(
             onDismissRequest = {
@@ -134,6 +156,7 @@ private fun MyCapturesContent(
     onDeleteCapture: (CaptureModel, () -> Unit) -> Unit,
     onCancelAssignment: () -> Unit = {}
 ) {
+
     val shape = RoundedCornerShape(12.dp)
     var selectedTab by rememberSaveable { mutableStateOf(0) }
 
@@ -289,7 +312,6 @@ private fun MyCapturesContent(
                 }
             }
         }
-
         if (isLoading) {
             Box(
                 modifier = Modifier
