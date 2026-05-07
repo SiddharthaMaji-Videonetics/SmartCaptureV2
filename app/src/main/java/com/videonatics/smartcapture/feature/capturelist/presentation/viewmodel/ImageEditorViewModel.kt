@@ -26,8 +26,6 @@ class ImageEditorViewModel @Inject constructor(
     val detectedBox: Flow<RectF?> = _detectedBox
 
     fun precessImage(
-        bmp: Bitmap,
-        boundBox: RectF,
         interpreter: Interpreter?,
         image: Bitmap
     ) {
@@ -44,13 +42,13 @@ class ImageEditorViewModel @Inject constructor(
             imgSize = 416
         )
         val detection = finalDetections.firstOrNull()
-//val imageWidth = prep.srcWidth.toFloat()
-//val imageHeight = prep.srcHeight.toFloat()
+val imageWidth = prep.srcWidth.toFloat()
+val imageHeight = prep.srcHeight.toFloat()
 
         if(detection !=null){
             val normBox = detection.toRect().toNormalized(
-                image.width.toFloat(),
-                image.height.toFloat()
+                imageWidth,
+                imageHeight
             )
 
             _detectedBox.value = normBox

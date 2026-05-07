@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -47,6 +48,8 @@ import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel.ImageEditorViewModel
+import com.videonatics.smartcapture.feature.details.presentation.view.ImageWithBoundingBox
+import com.videonatics.smartcapture.feature.details.presentation.view.ZoomableImageWithBoundingBox
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -145,6 +148,8 @@ fun ImageEditorPage(
         }
     }
 
+
+
     if (interpreter == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -165,6 +170,8 @@ fun ImageEditorPage(
         }
 
         return
+    }else{
+        vm.precessImage( interpreter, bitmap)
     }
 
 
@@ -175,7 +182,7 @@ fun ImageEditorPage(
         onBack=onBack,
         onCrop = onCrop,
         onCropSizeChange = {cropped, boundBox ->
-            vm.precessImage(cropped, boundBox, interpreter, bitmap)
+
         })
 }
 
@@ -352,12 +359,27 @@ fun ImageEditorPageComponent(
                 }
         ) {
 
-            Image(
-                bitmap = imageBitmap,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
+            if( detectedBox !=null) {
+                Log.d("ImageEditorPageComponent", "detectedBox: $detectedBox")
+                val effBox = detectedBox.toPixel(
+                    imageBitmap.width.toFloat(),
+                    imageBitmap.height.toFloat()
+                )
+
+                ImageWithBoundingBox(
+                    bitmap = imageBitmap.asAndroidBitmap(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                    rect = effBox
+                )
+            }else{
+                ImageWithBoundingBox(
+                    bitmap = imageBitmap.asAndroidBitmap(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+            }
+
 
             cropRect?.let { rect ->
 
@@ -430,23 +452,7 @@ fun ImageEditorPageComponent(
                             strokeWidth = 2f
                         )
                     }
-                    if( detectedBox !=null) {
-                        Log.d("ImageEditorPageComponent", "detectedBox: $detectedBox")
-                        val effBox = detectedBox.toPixel(
-                            canvasSize.width.toFloat(),
-                            canvasSize.height.toFloat()
-                        )
-                        drawRect(
-                            color = Color.Green,
-                            topLeft = Offset(effBox.left,
-                                effBox.top),
-                            size = Size(
-                                effBox.right - effBox.left,
-                                effBox.bottom - effBox.top
-                            ),
-                            style = Stroke(width = 4f)
-                        )
-                    }
+
                     drawHandle(rect.left, rect.top, handleRadius)
                     drawHandle(rect.right, rect.top, handleRadius)
                     drawHandle(rect.left, rect.bottom, handleRadius)
@@ -722,9 +728,12 @@ private fun ImageEditorPagePreview() {
     SmartCaptureTheme(
         darkTheme = true
     ) {
-        ImageEditorPage(
+        ImageEditorPageComponent(
             title = "Image Editor",
-            imgUri = null
+            bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888),
+            onBack = {},
+            onCrop = { _, _, _ -> },
+            detectedBox = null
         )
     }
 }
