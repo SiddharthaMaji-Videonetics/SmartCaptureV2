@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import com.videonatics.smartcapture.core.parseOutput
 import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.preprocessBitmap
+import com.videonatics.smartcapture.core.toNormalized
+import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.toRect
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -24,11 +26,12 @@ class ImageEditorViewModel @Inject constructor(
     val detectedBox: Flow<RectF?> = _detectedBox
 
     fun precessImage(
-        cropped: Bitmap,
+        bmp: Bitmap,
         boundBox: RectF,
-        interpreter: Interpreter?
+        interpreter: Interpreter?,
+        image: Bitmap
     ) {
-        val prep = preprocessBitmap(cropped, 416)
+        val prep = preprocessBitmap(bitmap = image, 416)
         val output = Array(1) { Array(6) { FloatArray(3549) } }
         interpreter?.run(prep.buffer, output)
         val finalDetections = parseOutput(
@@ -41,12 +44,18 @@ class ImageEditorViewModel @Inject constructor(
             imgSize = 416
         )
         val detection = finalDetections.firstOrNull()
+//val imageWidth = prep.srcWidth.toFloat()
+//val imageHeight = prep.srcHeight.toFloat()
 
         if(detection !=null){
-            _detectedBox.value = detection.toRect()
+            val normBox = detection.toRect().toNormalized(
+                image.width.toFloat(),
+                image.height.toFloat()
+            )
+
+            _detectedBox.value = normBox
         }
-        //imageWidth = prep.srcWidth.toFloat()
-        //imageHeight = prep.srcHeight.toFloat()
+
 //        onImageDimensionsCaptured(imageWidth, imageHeight)
 
     }

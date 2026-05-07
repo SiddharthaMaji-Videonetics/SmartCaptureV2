@@ -1,14 +1,11 @@
 package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.graphics.RectF
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -47,10 +44,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.toNormalized
+import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel.ImageEditorViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
-import io.ktor.client.plugins.logging.Logging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
@@ -170,29 +167,28 @@ fun ImageEditorPage(
         return
     }
 
-    LaunchedEffect(detectedBoxFlow.value) {
-        if(detectedBoxFlow.value !=null){
-        Log.e("box_detection", "${detectedBoxFlow.value}")
-        }
-    }
 
 
     ImageEditorPageComponent(title,
         bitmap = bitmap,
+        detectedBox = detectedBoxFlow.value,
         onBack=onBack,
         onCrop = onCrop,
         onCropSizeChange = {cropped, boundBox ->
-            vm.precessImage(cropped, boundBox, interpreter)
+            vm.precessImage(cropped, boundBox, interpreter, bitmap)
         })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImageEditorPageComponent(title: String,
-                             bitmap: Bitmap,
-                             onBack: () -> Unit = {},
-                             onCropSizeChange: (Bitmap, RectF) -> Unit = {_,_->},
-                             onCrop: (Bitmap, Bitmap, RectF) -> Unit = {_, _, _->}) {
+fun ImageEditorPageComponent(
+    title: String,
+    bitmap: Bitmap,
+    onBack: () -> Unit = {},
+    onCropSizeChange: (Bitmap, RectF) -> Unit = { _, _ -> },
+    onCrop: (Bitmap, Bitmap, RectF) -> Unit = { _, _, _ -> },
+    detectedBox: RectF?
+) {
     val imageBitmap = remember(bitmap) {
         bitmap.asImageBitmap()
     }
@@ -379,6 +375,7 @@ fun ImageEditorPageComponent(title: String,
                         color = Color.Black.copy(alpha = 0.65f)
                     )
 
+
                     // Transparent crop area
                     drawRect(
                         color = Color.Transparent,
@@ -433,7 +430,23 @@ fun ImageEditorPageComponent(title: String,
                             strokeWidth = 2f
                         )
                     }
-
+                    if( detectedBox !=null) {
+                        Log.d("ImageEditorPageComponent", "detectedBox: $detectedBox")
+                        val effBox = detectedBox.toPixel(
+                            canvasSize.width.toFloat(),
+                            canvasSize.height.toFloat()
+                        )
+                        drawRect(
+                            color = Color.Green,
+                            topLeft = Offset(effBox.left,
+                                effBox.top),
+                            size = Size(
+                                effBox.right - effBox.left,
+                                effBox.bottom - effBox.top
+                            ),
+                            style = Stroke(width = 4f)
+                        )
+                    }
                     drawHandle(rect.left, rect.top, handleRadius)
                     drawHandle(rect.right, rect.top, handleRadius)
                     drawHandle(rect.left, rect.bottom, handleRadius)
