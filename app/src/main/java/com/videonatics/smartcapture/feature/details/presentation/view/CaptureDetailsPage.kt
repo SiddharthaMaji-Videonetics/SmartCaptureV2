@@ -155,7 +155,7 @@ fun ImageAnalysisPageComponent(
     isUploadVisible: Boolean = false,
     capturedImageBoundingBox: RectF? = null,
     capturedImageObbCorners: List<PointF>? = null,
-    rotationAngle: Float = 0f,
+    rotationAngle: Float = 90f,
     isUploading: Boolean = false,
     uploadProgress: Float = 0f,
     qualityResult: ImageQualityResult? = null,

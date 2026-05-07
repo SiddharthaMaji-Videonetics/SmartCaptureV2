@@ -160,6 +160,130 @@ fun preprocess(
     )
 }
 
+fun preprocessBitmap(
+    bitmap: Bitmap,
+    size: Int = 416,
+    rotation: Int = 0
+): PreprocessResult {
+
+    val srcW = if (rotation == 90 || rotation == 270) {
+        bitmap.height
+    } else {
+        bitmap.width
+    }
+
+    val srcH = if (rotation == 90 || rotation == 270) {
+        bitmap.width
+    } else {
+        bitmap.height
+    }
+
+    val ratio = minOf(
+        size.toFloat() / srcW,
+        size.toFloat() / srcH
+    )
+
+    val newW = (srcW * ratio).toInt()
+    val newH = (srcH * ratio).toInt()
+
+    val dx = (size - newW) / 2f
+    val dy = (size - newH) / 2f
+
+    val buffer = ByteBuffer.allocateDirect(
+        1 * size * size * 3 * 4
+    ).apply {
+        order(ByteOrder.nativeOrder())
+    }
+
+    val total = size * size
+    val pad = 114f
+
+    val r = FloatArray(total) { pad }
+    val g = FloatArray(total) { pad }
+    val b = FloatArray(total) { pad }
+
+    val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+        bitmap.copy(Bitmap.Config.ARGB_8888, false)
+    } else {
+        bitmap
+    }
+
+    val pixels = IntArray(safeBitmap.width * safeBitmap.height)
+
+    safeBitmap.getPixels(
+        pixels,
+        0,
+        safeBitmap.width,
+        0,
+        0,
+        safeBitmap.width,
+        safeBitmap.height
+    )
+
+    for (y in 0 until newH) {
+        for (x in 0 until newW) {
+
+            val srcXr = (x / ratio).toInt().coerceIn(0, srcW - 1)
+            val srcYr = (y / ratio).toInt().coerceIn(0, srcH - 1)
+
+            val (srcX, srcY) = when (rotation) {
+                90 -> Pair(srcYr, bitmap.height - srcXr - 1)
+
+                180 -> Pair(
+                    bitmap.width - srcXr - 1,
+                    bitmap.height - srcYr - 1
+                )
+
+                270 -> Pair(
+                    bitmap.width - srcYr - 1,
+                    srcXr
+                )
+
+                else -> Pair(srcXr, srcYr)
+            }
+
+            if (srcX !in 0 until bitmap.width ||
+                srcY !in 0 until bitmap.height
+            ) continue
+
+            val color = pixels[srcY * bitmap.width + srcX]
+
+            val rVal = Color.red(color).toFloat()
+            val gVal = Color.green(color).toFloat()
+            val bVal = Color.blue(color).toFloat()
+
+            val px = (
+                    (y + dy.toInt()) * size +
+                            (x + dx.toInt())
+                    )
+
+            if (px !in 0 until total) continue
+
+            r[px] = rVal
+            g[px] = gVal
+            b[px] = bVal
+        }
+    }
+
+    // NHWC
+    for (i in 0 until total) {
+        buffer.putFloat(r[i] / 255f)
+        buffer.putFloat(g[i] / 255f)
+        buffer.putFloat(b[i] / 255f)
+    }
+
+    buffer.rewind()
+
+    return PreprocessResult(
+        buffer = buffer,
+        ratio = ratio,
+        dx = dx,
+        dy = dy,
+        srcWidth = srcW,
+        srcHeight = srcH
+    )
+}
+
 fun parseOutput(
     output: Array<Array<FloatArray>>, // (1, 6, N)
     ratio: Float,

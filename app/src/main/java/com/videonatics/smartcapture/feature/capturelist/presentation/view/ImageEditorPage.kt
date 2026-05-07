@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -41,9 +44,17 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.uriToBitmap
+import com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel.ImageEditorViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
+import io.ktor.client.plugins.logging.Logging
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -64,7 +75,7 @@ enum class DragHandle {
     BOTTOM_RIGHT
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun ImageEditorPage(
     modifier: Modifier = Modifier,
@@ -73,13 +84,78 @@ fun ImageEditorPage(
     onBack: () -> Unit = {},
     onCrop: (Bitmap, Bitmap, RectF) -> Unit = {_, _, _->}
 ) {
-
+    val vm = hiltViewModel<ImageEditorViewModel>()
+    var interpreter by remember { mutableStateOf<Interpreter?>(null) }
+    var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
     val context = LocalContext.current
 
+    val detectedBoxFlow = vm.detectedBox.collectAsState(null)
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.Default) {
+            val model = try {
+                loadModelFile(context, "box_detector.tflite")
+            } catch (e: Exception) {
+                Log.e("CapturePage", "Failed to load model file", e)
+                return@withContext
+            }
+
+            var interp: Interpreter? = null
+            var delegate: GpuDelegate? = null
+
+            try {
+                val options = Interpreter.Options()
+                try {
+                    delegate = GpuDelegate()
+                    options.addDelegate(delegate)
+                } catch (e: Exception) {
+                    Log.e("CapturePage", "GpuDelegate creation failed: ${e.message}")
+                }
+
+                interp = Interpreter(model, options)
+                Log.d("CapturePage", "Interpreter initialized (GPU: ${delegate != null})")
+            } catch (e: Exception) {
+                Log.e("CapturePage", "Interpreter initialization with delegate failed: ${e.message}. Falling back to CPU.")
+                delegate?.close()
+                delegate = null
+
+                try {
+                    val cpuOptions = Interpreter.Options().apply {
+                        setNumThreads(4)
+                    }
+                    interp = Interpreter(model, cpuOptions)
+                    Log.d("CapturePage", "Interpreter initialized with CPU fallback")
+                } catch (e2: Exception) {
+                    Log.e("CapturePage", "CPU fallback also failed", e2)
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                interpreter = interp
+                gpuDelegate = delegate
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            interpreter?.close()
+            gpuDelegate?.close()
+        }
+    }
     val bitmap = remember(imgUri) {
         imgUri?.let {
             uriToBitmap(context, it)
         }
+    }
+
+    if (interpreter == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
     }
 
     if (bitmap == null) {
@@ -94,17 +170,40 @@ fun ImageEditorPage(
         return
     }
 
+    LaunchedEffect(detectedBoxFlow.value) {
+        if(detectedBoxFlow.value !=null){
+        Log.e("box_detection", "${detectedBoxFlow.value}")
+        }
+    }
+
+
+    ImageEditorPageComponent(title,
+        bitmap = bitmap,
+        onBack=onBack,
+        onCrop = onCrop,
+        onCropSizeChange = {cropped, boundBox ->
+            vm.precessImage(cropped, boundBox, interpreter)
+        })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImageEditorPageComponent(title: String,
+                             bitmap: Bitmap,
+                             onBack: () -> Unit = {},
+                             onCropSizeChange: (Bitmap, RectF) -> Unit = {_,_->},
+                             onCrop: (Bitmap, Bitmap, RectF) -> Unit = {_, _, _->}) {
     val imageBitmap = remember(bitmap) {
         bitmap.asImageBitmap()
     }
-
+    var cropRect by remember {
+        mutableStateOf<CropRect?>(null)
+    }
     var canvasSize by remember {
         mutableStateOf(IntSize.Zero)
     }
 
-    var cropRect by remember {
-        mutableStateOf<CropRect?>(null)
-    }
+
 
     var activeHandle by remember {
         mutableStateOf(DragHandle.NONE)
@@ -112,6 +211,7 @@ fun ImageEditorPage(
 
     val handleRadius = 32f
     val minCropSize = 200f
+
 
     LaunchedEffect(canvasSize) {
 
@@ -141,7 +241,6 @@ fun ImageEditorPage(
             )
         }
     }
-
     Scaffold(
         topBar = {
 
@@ -190,7 +289,7 @@ fun ImageEditorPage(
     ) { padding ->
 
         Box(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(Color.Black)
@@ -216,6 +315,17 @@ fun ImageEditorPage(
 
                         onDragEnd = {
                             activeHandle = DragHandle.NONE
+                            cropRect?.let {
+
+                                val (cropped,boundBox) =
+                                    cropBitmapFromRect(
+                                        originalBitmap = bitmap,
+                                        cropRect = it,
+                                        containerWidth = canvasSize.width.toFloat(),
+                                        containerHeight = canvasSize.height.toFloat()
+                                    )
+                                onCropSizeChange.invoke(cropped, boundBox)
+                            }
                         },
 
                         onDragCancel = {
@@ -238,6 +348,9 @@ fun ImageEditorPage(
                                     canvasHeight = canvasSize.height.toFloat(),
                                     minSize = minCropSize
                                 )
+
+
+
                         }
                     }
                 }
