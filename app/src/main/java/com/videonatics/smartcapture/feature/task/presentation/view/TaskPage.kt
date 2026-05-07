@@ -82,7 +82,7 @@ fun TaskPage(
         onStageClick = { stage, isLocked ->
             if (!isLocked && !isAssignmentLoading) {
                 val stageStatus = stage.status.uppercase()
-                if (stageStatus == "IN_PROGRESS" || stageStatus == "COMPLETED") {
+                if (stageStatus == "IN_PROGRESS" || stageStatus == "COMPLETED" || stageStatus == "OVERRIDE_APPROVED") {
                     navController.navigate("${PageRoute.ANALYSIS.name}/$taskId/${stage.id}")
                 } else {
                     val assignedCapture = assignedByStageId[stage.id]
@@ -175,7 +175,11 @@ fun TaskPageComponent(
                     }
                     itemsIndexed(taskDetails.stages) { index, stage ->
                         val isPreviousStageCompleted = if (index == 0) true else {
-                            taskDetails.stages[index - 1].status == "COMPLETED"
+                            when(taskDetails.stages[index - 1].status){
+                                "COMPLETED" -> true
+                                "OVERRIDE_APPROVED" -> true
+                                else -> false
+                            }
                         }
                         val isLocked = stage.status == "LOCKED" || !isPreviousStageCompleted
                         val isAssigned = assignedByStageId.containsKey(stage.id)
