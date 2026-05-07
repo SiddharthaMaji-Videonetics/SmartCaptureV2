@@ -304,7 +304,8 @@ fun ImageAnalysisPageComponent(
                             rect = properRect,
                             corners = properCorners,
                             rotationAngle = rotationAngle,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            boxColor = Color(0xFF00D77B)
                         )
                     }
 
