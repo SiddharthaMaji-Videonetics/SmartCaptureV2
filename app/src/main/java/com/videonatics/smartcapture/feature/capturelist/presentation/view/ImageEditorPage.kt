@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.videonatics.smartcapture.core.loadModelFile
 import com.videonatics.smartcapture.core.toNormalized
@@ -55,7 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
-import kotlin.math.max
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -90,6 +91,7 @@ fun ImageEditorPage(
     val context = LocalContext.current
 
     val detectedBoxFlow = vm.detectedBox.collectAsState(null)
+    val detectedBoxAngleFlow = vm.detectedBoxAngle.collectAsState(null)
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
@@ -176,14 +178,15 @@ fun ImageEditorPage(
 
 
 
-    ImageEditorPageComponent(title,
+    ImageEditorPageComponent(
+        title = title,
         bitmap = bitmap,
         detectedBox = detectedBoxFlow.value,
-        onBack=onBack,
+        detectedBoxAngle = detectedBoxAngleFlow.value,
+        onBack = onBack,
         onCrop = onCrop,
-        onCropSizeChange = {cropped, boundBox ->
-
-        })
+        onCropSizeChange = { _, _ -> }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -194,7 +197,8 @@ fun ImageEditorPageComponent(
     onBack: () -> Unit = {},
     onCropSizeChange: (Bitmap, RectF) -> Unit = { _, _ -> },
     onCrop: (Bitmap, Bitmap, RectF) -> Unit = { _, _, _ -> },
-    detectedBox: RectF?
+    detectedBox: RectF?,
+    detectedBoxAngle: Float? = null
 ) {
     val imageBitmap = remember(bitmap) {
         bitmap.asImageBitmap()
@@ -216,34 +220,69 @@ fun ImageEditorPageComponent(
     val minCropSize = 200f
 
 
+    // Fallback: default centered square when canvas size is first known
     LaunchedEffect(canvasSize) {
+        if (cropRect == null && canvasSize.width > 0 && canvasSize.height > 0) {
+            val w = canvasSize.width.toFloat()
+            val h = canvasSize.height.toFloat()
+            val s = min(w, h) * 0.7f
+            val l = (w - s) / 2f
+            val t = (h - s) / 2f
+            cropRect = CropRect(l, t, l + s, t + s)
+        }
+    }
 
-        if (
-            cropRect == null &&
-            canvasSize.width > 0 &&
-            canvasSize.height > 0
-        ) {
-
-            val width = canvasSize.width.toFloat()
-            val height = canvasSize.height.toFloat()
-
-            val cropSize =
-                min(width, height) * 0.7f
-
-            val left =
-                (width - cropSize) / 2f
-
-            val top =
-                (height - cropSize) / 2f
-
+    // Auto-fit crop rect to the detected bounding box on first detection
+    var fittedToBox by remember { mutableStateOf(false) }
+    LaunchedEffect(detectedBox, canvasSize) {
+        if (!fittedToBox && detectedBox != null && canvasSize.width > 0 && canvasSize.height > 0) {
+            fittedToBox = true
+            val iw = bitmap.width.toFloat()
+            val ih = bitmap.height.toFloat()
+            val cw = canvasSize.width.toFloat()
+            val ch = canvasSize.height.toFloat()
+            val sc = min(cw / iw, ch / ih)
+            val ox = (cw - iw * sc) / 2f
+            val oy = (ch - ih * sc) / 2f
+            val eb = detectedBox.toPixel(iw, ih)
+            val pad = 28f
             cropRect = CropRect(
-                left = left,
-                top = top,
-                right = left + cropSize,
-                bottom = top + cropSize
+                left   = (ox + eb.left  * sc - pad).coerceAtLeast(0f),
+                top    = (oy + eb.top   * sc - pad).coerceAtLeast(0f),
+                right  = (ox + eb.right * sc + pad).coerceAtMost(cw),
+                bottom = (oy + eb.bottom* sc + pad).coerceAtMost(ch)
             )
         }
     }
+
+    // Crop is enabled when the detected box is fully inside the crop rect,
+    // or when the centres are close enough (the user has roughly aligned the crop to the box).
+    val isCropEnabled = run {
+        if (detectedBox == null || cropRect == null ||
+            canvasSize.width == 0 || canvasSize.height == 0) return@run false
+        val iw = bitmap.width.toFloat()
+        val ih = bitmap.height.toFloat()
+        val sc = min(canvasSize.width.toFloat() / iw, canvasSize.height.toFloat() / ih)
+        val ox = (canvasSize.width.toFloat() - iw * sc) / 2f
+        val oy = (canvasSize.height.toFloat() - ih * sc) / 2f
+        // Detected box corners in canvas space
+        val bl = ox + detectedBox.left  * iw * sc
+        val bt = oy + detectedBox.top   * ih * sc
+        val br = ox + detectedBox.right * iw * sc
+        val bb = oy + detectedBox.bottom* ih * sc
+        val cr = cropRect!!
+        val fullyInside = cr.left <= bl && cr.top <= bt && cr.right >= br && cr.bottom >= bb
+        // "Almost centred": box centre within 20 % of crop rect's half-dimensions from crop centre
+        val cropCx = (cr.left + cr.right)  / 2f
+        val cropCy = (cr.top  + cr.bottom) / 2f
+        val boxCx  = (bl + br) / 2f
+        val boxCy  = (bt + bb) / 2f
+        val tolX = (cr.right  - cr.left)   * 0.20f
+        val tolY = (cr.bottom - cr.top)    * 0.20f
+        val almostCentred = abs(boxCx - cropCx) <= tolX && abs(boxCy - cropCy) <= tolY
+        fullyInside || almostCentred
+    }
+
     Scaffold(
         topBar = {
 
@@ -268,18 +307,15 @@ fun ImageEditorPageComponent(
                 actions = {
 
                     TextButton(
+                        enabled = isCropEnabled,
                         onClick = {
-
                             cropRect?.let {
-
-                                val (cropped,boundBox) =
-                                    cropBitmapFromRect(
-                                        originalBitmap = bitmap,
-                                        cropRect = it,
-                                        containerWidth = canvasSize.width.toFloat(),
-                                        containerHeight = canvasSize.height.toFloat()
-                                    )
-
+                                val (cropped, boundBox) = cropBitmapFromRect(
+                                    originalBitmap = bitmap,
+                                    cropRect = it,
+                                    containerWidth = canvasSize.width.toFloat(),
+                                    containerHeight = canvasSize.height.toFloat()
+                                )
                                 onCrop(bitmap, cropped, boundBox)
                             }
                         }
@@ -359,24 +395,33 @@ fun ImageEditorPageComponent(
                 }
         ) {
 
-            if( detectedBox !=null) {
-                Log.d("ImageEditorPageComponent", "detectedBox: $detectedBox")
+            if (detectedBox != null) {
                 val effBox = detectedBox.toPixel(
                     imageBitmap.width.toFloat(),
                     imageBitmap.height.toFloat()
                 )
-
                 ImageWithBoundingBox(
                     bitmap = imageBitmap.asAndroidBitmap(),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit,
-                    rect = effBox
+                    rect = effBox,
+                    rotationAngle = detectedBoxAngle ?: 0f
                 )
-            }else{
+            } else {
                 ImageWithBoundingBox(
                     bitmap = imageBitmap.asAndroidBitmap(),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
+                )
+            }
+
+            if (detectedBox == null) {
+                Text(
+                    text = "No box detected",
+                    color = Color.Yellow,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
                 )
             }
 
@@ -662,47 +707,29 @@ private fun cropBitmapFromRect(
     val imageOffsetY =
         (containerHeight - displayedImageHeight) / 2f
 
-    val left =
-        ((cropRect.left - imageOffsetX) / scale)
-            .toInt()
-            .coerceIn(0, originalBitmap.width - 1)
+    val left = ((cropRect.left - imageOffsetX) / scale)
+        .toInt()
+        .coerceIn(0, originalBitmap.width - 1)
 
-    val top =
-        ((cropRect.top - imageOffsetY) / scale)
-            .toInt()
-            .coerceIn(0, originalBitmap.height - 1)
+    val top = ((cropRect.top - imageOffsetY) / scale)
+        .toInt()
+        .coerceIn(0, originalBitmap.height - 1)
 
-    val right =
-        ((cropRect.right - imageOffsetX) / scale)
-            .toInt()
-            .coerceIn(1, originalBitmap.width)
+    // right/bottom must be strictly greater than left/top so the crop region is always valid
+    val right = ((cropRect.right - imageOffsetX) / scale)
+        .toInt()
+        .coerceIn(left + 1, originalBitmap.width)
 
-    val bottom =
-        ((cropRect.bottom - imageOffsetY) / scale)
-            .toInt()
-            .coerceIn(1, originalBitmap.height)
+    val bottom = ((cropRect.bottom - imageOffsetY) / scale)
+        .toInt()
+        .coerceIn(top + 1, originalBitmap.height)
 
-    val width =
-        max(1, right - left)
+    val width = right - left
+    val height = bottom - top
 
-    val height =
-        max(1, bottom - top)
+    val croppedBitmap = Bitmap.createBitmap(originalBitmap, left, top, width, height)
 
-    val croppedBitmap =
-        Bitmap.createBitmap(
-            originalBitmap,
-            left,
-            top,
-            width,
-            height
-        )
-
-    val rectF = RectF(
-        left.toFloat(),
-        top.toFloat(),
-        right.toFloat(),
-        bottom.toFloat()
-    )
+    val rectF = RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
 
     return Pair(
         croppedBitmap,

@@ -152,28 +152,21 @@ fun ImageWithBoundingBox(
         bitmap.asImageBitmap()
     }
 
-    var canvasSize by remember {
-        mutableStateOf(IntSize.Zero)
-    }
-
     Box(
         modifier = modifier
             .background(Color.Black)
-            .onSizeChanged {
-                canvasSize = it
-            }
     ) {
 
         Canvas(
             modifier = Modifier.fillMaxSize()
         ) {
 
-            if (canvasSize.width == 0 || canvasSize.height == 0) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+
+            if (canvasWidth == 0f || canvasHeight == 0f) {
                 return@Canvas
             }
-
-            val canvasWidth = canvasSize.width.toFloat()
-            val canvasHeight = canvasSize.height.toFloat()
 
             val imageWidth = bitmap.width.toFloat()
             val imageHeight = bitmap.height.toFloat()
@@ -195,31 +188,21 @@ fun ImageWithBoundingBox(
                 }
             }
 
-            val displayedWidth = imageWidth * scale
-            val displayedHeight = imageHeight * scale
-
-            val offsetX = (canvasWidth - displayedWidth) / 2f
-            val offsetY = (canvasHeight - displayedHeight) / 2f
-
-            drawImage(
-                image = imageBitmap,
-                dstOffset = IntOffset(
-                    offsetX.toInt(),
-                    offsetY.toInt()
-                ),
-                dstSize = IntSize(
-                    displayedWidth.toInt(),
-                    displayedHeight.toInt()
-                )
-            )
+            val offsetX = (canvasWidth - imageWidth * scale) / 2f
+            val offsetY = (canvasHeight - imageHeight * scale) / 2f
 
             withTransform({
-
                 translate(offsetX, offsetY)
-
                 scale(scale, scale)
-
             }) {
+
+                drawImage(
+                    image = imageBitmap,
+                    dstSize = IntSize(
+                        imageWidth.toInt(),
+                        imageHeight.toInt()
+                    )
+                )
 
                 if (corners != null && corners.size >= 4) {
 

@@ -22,6 +22,7 @@ import javax.inject.Inject
 
 data class AnalysisUiState(
     val isLoading: Boolean = true,
+    val assetId: String = "",
     val taskStatus: String = "",
     val stageType: String = "",
     val stageStatus: String = "",
@@ -74,6 +75,7 @@ class AnalysisViewModel @Inject constructor(
                         _state.update { s ->
                             s.copy(
                                 isLoading = false,
+                                assetId = detail.assetId,
                                 taskStatus = detail.status,
                                 stageType = stage?.stageType.orEmpty(),
                                 stageStatus = stage?.status.orEmpty(),
@@ -120,10 +122,11 @@ class AnalysisViewModel @Inject constructor(
     fun editCheckpoint(
         checkpointId: String,
         editedResult: String?,
-        editNote: String? = null
+        editNote: String? = null,
+        editedData: Map<String, String>? = null
     ) = viewModelScope.launch {
         _state.update { it.copy(isSubmitting = true) }
-        repository.editCheckpoint(checkpointId, editedResult, editNote)
+        repository.editCheckpoint(checkpointId, editedResult, editNote, editedData)
             .onSuccess { refresh(); _events.send("Edit saved") }
             .onFailure { _events.send(it.message ?: "Edit failed") }
         _state.update { it.copy(isSubmitting = false) }

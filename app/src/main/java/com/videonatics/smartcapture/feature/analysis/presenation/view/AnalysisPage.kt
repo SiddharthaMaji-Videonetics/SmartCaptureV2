@@ -81,7 +81,7 @@ private fun taskPill(status: String): PillStyle = when (status.uppercase()) {
 private fun String.toDisplayName(): String =
     split("_").joinToString(" ") { it.replaceFirstChar { c -> c.titlecase() } }
 
-private fun formatTimestamp(iso: String): String = try {
+internal fun formatTimestamp(iso: String): String = try {
     val months = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     val date = iso.substringBefore("T")
     val time = iso.substringAfter("T").substringBefore(".")
@@ -140,6 +140,7 @@ fun AnalysisPage(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {},
     onRetake: () -> Unit = {},
+    onAttemptClick: (taskId: String, stageId: String, attemptId: String) -> Unit = { _, _, _ -> },
     vm: AnalysisViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -155,8 +156,8 @@ fun AnalysisPage(
             check = check,
             isSubmitting = state.isSubmitting,
             onDismiss = { editingCheck = null },
-            onSubmit = { result, note ->
-                vm.editCheckpoint(check.id, result, note.ifBlank { null })
+            onSubmit = { result, note, editedData ->
+                vm.editCheckpoint(check.id, result, note.ifBlank { null }, editedData)
                 editingCheck = null
             },
             onRevert = {
@@ -174,6 +175,9 @@ fun AnalysisPage(
         onRefresh = { vm.refresh() },
         onRetake = onRetake,
         onEditCheck = { editingCheck = it },
+        onAttemptClick = { attemptId ->
+            onAttemptClick(vm.taskId, vm.stageId, attemptId)
+        },
         onOverrideRequest = { vm.showOverrideDialog() },
         onOverrideDismiss = { vm.dismissOverrideDialog() },
         onOverrideConfirm = { vm.confirmOverride() },
@@ -191,6 +195,7 @@ private fun AnalysisScaffold(
     onRefresh: () -> Unit,
     onRetake: () -> Unit,
     onEditCheck: (AnalysisCheck) -> Unit,
+    onAttemptClick: (attemptId: String) -> Unit,
     onOverrideRequest: () -> Unit,
     onOverrideDismiss: () -> Unit,
     onOverrideConfirm: () -> Unit,
@@ -240,6 +245,7 @@ private fun AnalysisScaffold(
                     state = state,
                     paddingValues = paddingValues,
                     onEditCheck = onEditCheck,
+                    onAttemptClick = onAttemptClick,
                     onRetake = onRetake,
                     onOverrideRequest = onOverrideRequest
                 )
@@ -253,6 +259,7 @@ private fun AnalysisContent(
     state: AnalysisUiState,
     paddingValues: PaddingValues,
     onEditCheck: (AnalysisCheck) -> Unit,
+    onAttemptClick: (attemptId: String) -> Unit,
     onRetake: () -> Unit,
     onOverrideRequest: () -> Unit
 ) {
@@ -285,13 +292,20 @@ private fun AnalysisContent(
             }
         }
 
-        // Stage type heading
+        // Stage type heading + FAT ID
         if (state.stageType.isNotEmpty()) {
             Text(
                 text = state.stageType.toDisplayName(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (state.assetId.isNotEmpty()) {
+            Text(
+                text = "FAT ID: ${state.assetId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -310,7 +324,7 @@ private fun AnalysisContent(
 
         // Attempt history
         if (state.attempts.isNotEmpty()) {
-            AttemptHistorySection(attempts = state.attempts)
+            AttemptHistorySection(attempts = state.attempts, onAttemptClick = onAttemptClick)
         }
 
         // Success banner
@@ -361,7 +375,7 @@ private fun ChecksSectionCard(
 }
 
 @Composable
-private fun CheckRow(check: AnalysisCheck, isFrozen: Boolean, onEditClick: () -> Unit) {
+internal fun CheckRow(check: AnalysisCheck, isFrozen: Boolean, onEditClick: () -> Unit) {
     val effective = check.effectiveResult
     val isPass = effective.uppercase() in setOf("PASS", "PASSED")
     val pill = resultPill(effective)
@@ -511,12 +525,24 @@ private fun CheckEditDialog(
     check: AnalysisCheck,
     isSubmitting: Boolean,
     onDismiss: () -> Unit,
-    onSubmit: (result: String, note: String) -> Unit,
+    onSubmit: (result: String, note: String, editedData: Map<String, String>?) -> Unit,
     onRevert: () -> Unit
 ) {
     var selectedResult by remember { mutableStateOf(check.effectiveResult.uppercase()) }
     var note by remember { mutableStateOf(check.editNote.orEmpty()) }
     var noteError by remember { mutableStateOf<String?>(null) }
+    var editedData by remember { mutableStateOf(check.effectiveData.toMutableMap()) }
+    var dataDirty by remember { mutableStateOf(false) }
+    var verdictDirty by remember { mutableStateOf(false) }
+
+    fun setData(key: String, value: String) {
+        editedData = (editedData + (key to value)).toMutableMap()
+        dataDirty = true
+        if (!verdictDirty) {
+            val derived = deriveVerdict(check.checkName, editedData)
+            if (derived != null) selectedResult = derived
+        }
+    }
 
     val isFlippingVerdict = selectedResult != check.result.uppercase()
 
@@ -527,85 +553,67 @@ private fun CheckEditDialog(
                 style = MaterialTheme.typography.titleMedium)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 // "System said: FAIL"
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("System said:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("System said:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val p = resultPill(check.result)
                     ResultPill(p.label, p.fg, p.bg)
                 }
-
-                // Reason (if any)
                 if (check.reason.isNotEmpty()) {
                     Text(check.reason, style = MaterialTheme.typography.bodySmall, color = Color(0xFF546E7A))
                 }
 
                 HorizontalDivider()
 
-                // Operator verdict header
-                Text("OPERATOR VERDICT",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.6.sp,
+                // ── Per-check value editor ─────────────────────────────────
+                Text("OPERATOR VALUE", style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                CheckValueEditor(checkName = check.checkName, data = editedData, onDataChange = ::setData)
+
+                HorizontalDivider()
+
+                // ── Verdict picker ─────────────────────────────────────────
+                Text("OPERATOR VERDICT", style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                // Radio group: Keep system + PASS / WARN / FAIL
                 Column(modifier = Modifier.selectableGroup()) {
-                    // "Keep system value" option
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selectedResult == check.result.uppercase(),
-                                onClick = { selectedResult = check.result.uppercase() },
-                                role = Role.RadioButton
-                            )
+                        modifier = Modifier.fillMaxWidth()
+                            .selectable(selected = selectedResult == check.result.uppercase(),
+                                onClick = { selectedResult = check.result.uppercase(); verdictDirty = true },
+                                role = Role.RadioButton)
                             .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RadioButton(selected = selectedResult == check.result.uppercase(), onClick = null)
-                        Text("Keep system value (${check.result.uppercase()})",
-                            style = MaterialTheme.typography.bodySmall)
+                        Text("Keep system value (${check.result.uppercase()})", style = MaterialTheme.typography.bodySmall)
                     }
-
                     resultOptions.forEach { option ->
                         val p = resultPill(option)
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedResult == option &&
-                                            option != check.result.uppercase(),
-                                    onClick = { selectedResult = option },
-                                    role = Role.RadioButton
-                                )
+                            modifier = Modifier.fillMaxWidth()
+                                .selectable(selected = selectedResult == option && option != check.result.uppercase(),
+                                    onClick = { selectedResult = option; verdictDirty = true },
+                                    role = Role.RadioButton)
                                 .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            RadioButton(
-                                selected = selectedResult == option && option != check.result.uppercase(),
-                                onClick = null
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(p.bg)
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
+                            RadioButton(selected = selectedResult == option && option != check.result.uppercase(), onClick = null)
+                            Box(Modifier.clip(RoundedCornerShape(4.dp)).background(p.bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
                                 Text(option, color = p.fg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
 
-                // Note field — required (≥10 chars) when flipping verdict
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it; if (noteError != null) noteError = null },
@@ -616,16 +624,9 @@ private fun CheckEditDialog(
                     isError = noteError != null,
                     supportingText = noteError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } }
                 )
-
-                // Revert option
                 if (check.isEdited) {
-                    TextButton(
-                        onClick = { if (!isSubmitting) onRevert() },
-                        enabled = !isSubmitting
-                    ) {
-                        Text("Revert to system result",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { if (!isSubmitting) onRevert() }, enabled = !isSubmitting) {
+                        Text("Revert to system result", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -634,10 +635,10 @@ private fun CheckEditDialog(
             TextButton(
                 onClick = {
                     if (isFlippingVerdict && note.trim().length < 10) {
-                        noteError = "Note must be at least 10 characters when changing the verdict."
+                        noteError = "Note must be ≥10 characters when changing the verdict."
                         return@TextButton
                     }
-                    onSubmit(selectedResult, note)
+                    onSubmit(selectedResult, note, if (dataDirty) editedData else null)
                 },
                 enabled = !isSubmitting
             ) {
@@ -645,16 +646,162 @@ private fun CheckEditDialog(
                 else Text("Save", fontWeight = FontWeight.Bold)
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSubmitting) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !isSubmitting) { Text("Cancel") } }
     )
+}
+
+// ── Per-check structured value editor ────────────────────────────────────────
+
+@Composable
+private fun CheckValueEditor(
+    checkName: String,
+    data: Map<String, String>,
+    onDataChange: (key: String, value: String) -> Unit
+) {
+    when (checkName) {
+        "box_status" -> {
+            ChipSelector("Observed", mapOf("covered" to "Covered", "opened" to "Opened"),
+                selected = data["observed"], onSelect = { onDataChange("observed", it) })
+            data["expected"]?.let { Text("Expected for this stage: $it", style = MaterialTheme.typography.labelSmall, color = Color(0xFF78909C)) }
+        }
+        "variant_detect" -> ChipSelector("Variant", mapOf("new" to "New variant", "old" to "Old variant"),
+            selected = data["variant"], onSelect = { onDataChange("variant", it) })
+        "cleanliness_score" -> ChipSelector("Dirt level",
+            mapOf("clean" to "Clean", "minor" to "Minor dirt", "significant" to "Significant dirt"),
+            selected = data["dirtLevel"], onSelect = { onDataChange("dirtLevel", it) })
+        "damage_assess" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChipSelector("Damage type",
+                mapOf("none" to "None", "crack" to "Crack", "missing_cover" to "Missing cover",
+                    "improper_close" to "Improper close", "other" to "Other"),
+                selected = data["damageType"], onSelect = { onDataChange("damageType", it) })
+            ChipSelector("Severity", mapOf("minor" to "Minor", "major" to "Major"),
+                selected = data["severity"], onSelect = { onDataChange("severity", it) })
+        }
+        "wiring_compliance" -> {
+            val current = data["violations"]?.split(", ")?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+            MultiChipSelector("Violations",
+                mapOf("criss_cross" to "Criss-cross", "edge_cross" to "Edge cross",
+                    "loose_excess" to "Loose excess", "wrong_entry_side" to "Wrong entry side"),
+                selected = current,
+                onToggle = { key, sel ->
+                    val next = if (sel) current + key else current - key
+                    onDataChange("violations", next.joinToString(", "))
+                }
+            )
+        }
+        "dsl_tag_check" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            NumberStepper("Attached ports", data["attachedPorts"]?.toIntOrNull() ?: 0) { onDataChange("attachedPorts", it.toString()) }
+            NumberStepper("Tags", data["tags"]?.toIntOrNull() ?: 0) { onDataChange("tags", it.toString()) }
+            data["expectedTags"]?.let { Text("System expected $it tag(s).", style = MaterialTheme.typography.labelSmall, color = Color(0xFF78909C)) }
+        }
+        "port_count" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            NumberStepper("Total ports", data["totalPorts"]?.toIntOrNull() ?: 0) { onDataChange("totalPorts", it.toString()) }
+            NumberStepper("Free ports", data["freePorts"]?.toIntOrNull() ?: 0) { onDataChange("freePorts", it.toString()) }
+            NumberStepper("Attached ports", data["attachedPorts"]?.toIntOrNull() ?: 0) { onDataChange("attachedPorts", it.toString()) }
+            NumberStepper("Power ports", data["powerPorts"]?.toIntOrNull() ?: 0) { onDataChange("powerPorts", it.toString()) }
+        }
+        "fat_ne_id_ocr" -> OcrEditor(data = data, onDataChange = onDataChange)
+        else -> Text("No structured editor for this check type.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF78909C))
+    }
+}
+
+@Composable
+private fun OcrEditor(data: Map<String, String>, onDataChange: (String, String) -> Unit) {
+    var primary by remember { mutableStateOf(data["primaryNumber"].orEmpty()) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedTextField(
+            value = primary,
+            onValueChange = { primary = it; onDataChange("primaryNumber", it) },
+            label = { Text("Primary FAT/NE number") },
+            placeholder = { Text("e.g. 64G-56-96-12-46") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+    }
+}
+
+@Composable
+private fun ChipSelector(
+    label: String,
+    options: Map<String, String>,
+    selected: String?,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF78909C))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            options.forEach { (key, display) ->
+                FilterChip(selected = selected == key, onClick = { onSelect(key) }, label = { Text(display, fontSize = 12.sp) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiChipSelector(
+    label: String,
+    options: Map<String, String>,
+    selected: Set<String>,
+    onToggle: (key: String, isSelected: Boolean) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF78909C))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            options.forEach { (key, display) ->
+                FilterChip(selected = key in selected, onClick = { onToggle(key, key !in selected) }, label = { Text(display, fontSize = 12.sp) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun NumberStepper(label: String, value: Int, onChanged: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Color(0xFF546E7A), modifier = Modifier.width(130.dp))
+        IconButton(onClick = { if (value > 0) onChanged(value - 1) }, modifier = Modifier.size(32.dp)) {
+            Icon(androidx.compose.material.icons.Icons.Default.ExpandMore, contentDescription = "Decrease", modifier = Modifier.size(18.dp))
+        }
+        Text("$value", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        IconButton(onClick = { if (value < 99) onChanged(value + 1) }, modifier = Modifier.size(32.dp)) {
+            Icon(androidx.compose.material.icons.Icons.Default.ChevronRight, contentDescription = "Increase", modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+private fun deriveVerdict(checkName: String, data: Map<String, String>): String? {
+    return when (checkName) {
+        "box_status" -> {
+            val observed = data["observed"]; val expected = data["expected"]
+            if (observed != null && expected != null) if (observed == expected) "PASS" else "FAIL" else null
+        }
+        "cleanliness_score" -> when (data["dirtLevel"]) {
+            "clean" -> "PASS"; "minor" -> "WARN"; "significant" -> "FAIL"; else -> null
+        }
+        "damage_assess" -> when (data["damageType"]) {
+            "none" -> "PASS"; "improper_close" -> "WARN"; null -> null; else -> "FAIL"
+        }
+        "wiring_compliance" -> {
+            val v = data["violations"]
+            if (v != null) if (v.isBlank()) "PASS" else "WARN" else null
+        }
+        "fat_ne_id_ocr" -> if (data["primaryNumber"].isNullOrBlank()) "FAIL" else "PASS"
+        "dsl_tag_check" -> {
+            val tags = data["tags"]?.toIntOrNull(); val expected = data["expectedTags"]?.toIntOrNull()
+            if (tags != null && expected != null) if (tags == expected) "PASS" else "FAIL" else null
+        }
+        else -> null
+    }
 }
 
 // ── Attempt history ───────────────────────────────────────────────────────────
 
 @Composable
-private fun AttemptHistorySection(attempts: List<AnalysisAttempt>) {
+private fun AttemptHistorySection(
+    attempts: List<AnalysisAttempt>,
+    onAttemptClick: (attemptId: String) -> Unit
+) {
+    // Latest attempt is already shown as the main image above; show all attempts
+    // (including latest) in the history for navigation convenience.
     val sorted = attempts.sortedByDescending { it.attemptNo }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -669,7 +816,11 @@ private fun AttemptHistorySection(attempts: List<AnalysisAttempt>) {
         ) {
             Column {
                 sorted.forEachIndexed { index, attempt ->
-                    AttemptRow(attempt = attempt, isLatest = index == 0)
+                    AttemptRow(
+                        attempt = attempt,
+                        isLatest = index == 0,
+                        onClick = { onAttemptClick(attempt.id) }
+                    )
                     if (index < sorted.size - 1) {
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -680,27 +831,48 @@ private fun AttemptHistorySection(attempts: List<AnalysisAttempt>) {
 }
 
 @Composable
-private fun AttemptRow(attempt: AnalysisAttempt, isLatest: Boolean) {
+private fun AttemptRow(attempt: AnalysisAttempt, isLatest: Boolean, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Thumbnail from API
+        Box(
+            modifier = Modifier
+                .size(width = 64.dp, height = 48.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            if (attempt.imageUrl != null) {
+                AuthenticatedNetworkImage(
+                    url = attempt.imageUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+        }
+
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Attempt ${attempt.attemptNo}",
+                Text(
+                    "Attempt ${attempt.attemptNo}",
                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface)
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 if (isLatest) MetaChip("latest", fg = MaterialTheme.colorScheme.primary, bg = MaterialTheme.colorScheme.primaryContainer)
             }
             if (attempt.createdAt.isNotEmpty()) {
-                Text(formatTimestamp(attempt.createdAt),
-                    style = MaterialTheme.typography.bodySmall, color = Color(0xFF78909C))
+                Text(formatTimestamp(attempt.createdAt), style = MaterialTheme.typography.bodySmall, color = Color(0xFF78909C))
             }
         }
         when (attempt.guardrailPassed) {
             true  -> { val p = resultPill("PASS"); ResultPill("GATE PASS", p.fg, p.bg) }
             false -> { val p = resultPill("FAIL"); ResultPill("GATE FAIL", p.fg, p.bg) }
-            null  -> Unit
+            null  -> Icon(androidx.compose.material.icons.Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF78909C), modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -915,6 +1087,7 @@ private fun AnalysisPagePreview() {
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onBackClick = {}, onRefresh = {}, onRetake = {}, onEditCheck = {},
+            onAttemptClick = {},
             onOverrideRequest = {}, onOverrideDismiss = {}, onOverrideConfirm = {},
             onOverrideReasonChange = {}
         )

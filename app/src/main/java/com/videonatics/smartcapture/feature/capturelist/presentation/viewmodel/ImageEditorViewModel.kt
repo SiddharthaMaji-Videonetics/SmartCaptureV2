@@ -2,28 +2,26 @@ package com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.videonatics.smartcapture.core.parseOutput
-import com.videonatics.smartcapture.core.preprocess
 import com.videonatics.smartcapture.core.preprocessBitmap
 import com.videonatics.smartcapture.core.toNormalized
-import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.toRect
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.gpu.GpuDelegate
 import javax.inject.Inject
+import kotlin.math.PI
 
 @HiltViewModel
-class ImageEditorViewModel @Inject constructor(
-
-) : ViewModel(){
+class ImageEditorViewModel @Inject constructor() : ViewModel() {
 
     private val _detectedBox = MutableStateFlow<RectF?>(null)
     val detectedBox: Flow<RectF?> = _detectedBox
+
+    private val _detectedBoxAngle = MutableStateFlow<Float?>(null)
+    val detectedBoxAngle: Flow<Float?> = _detectedBoxAngle
 
     fun precessImage(
         interpreter: Interpreter?,
@@ -42,20 +40,15 @@ class ImageEditorViewModel @Inject constructor(
             imgSize = 416
         )
         val detection = finalDetections.firstOrNull()
-val imageWidth = prep.srcWidth.toFloat()
-val imageHeight = prep.srcHeight.toFloat()
+        val imageWidth = prep.srcWidth.toFloat()
+        val imageHeight = prep.srcHeight.toFloat()
 
-        if(detection !=null){
-            val normBox = detection.toRect().toNormalized(
-                imageWidth,
-                imageHeight
-            )
-
-            _detectedBox.value = normBox
+        if (detection != null) {
+            _detectedBox.value = detection.toRect().toNormalized(imageWidth, imageHeight)
+            _detectedBoxAngle.value = (detection.angle * 180.0 / PI).toFloat()
+        } else {
+            _detectedBox.value = null
+            _detectedBoxAngle.value = null
         }
-
-//        onImageDimensionsCaptured(imageWidth, imageHeight)
-
     }
-
 }

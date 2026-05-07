@@ -37,7 +37,8 @@ data class AnalysisAttempt(
     val id: String,
     val attemptNo: Int,
     val createdAt: String,
-    val guardrailPassed: Boolean?
+    val guardrailPassed: Boolean?,
+    val imageUrl: String? = null
 )
 
 data class AnalysisStage(
@@ -46,13 +47,17 @@ data class AnalysisStage(
     val status: String,
     val order: Int = 0,
     val attempts: List<AnalysisAttempt> = emptyList(),
-    val latestAnalysis: AnalysisResult? = null
+    val latestAnalysis: AnalysisResult? = null,
+    val allAnalysisResults: List<AnalysisResult> = emptyList()
 ) {
     val attemptCount: Int get() = attempts.size
+    fun analysisForAttempt(attemptId: String): AnalysisResult? =
+        allAnalysisResults.firstOrNull { it.attemptId == attemptId }
 }
 
 data class AnalysisTaskDetail(
     val id: String,
+    val assetId: String = "",
     val status: String,
     val stages: List<AnalysisStage> = emptyList()
 )

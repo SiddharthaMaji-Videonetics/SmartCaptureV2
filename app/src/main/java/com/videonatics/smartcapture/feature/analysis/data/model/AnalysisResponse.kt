@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.analysis.data.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class AnalysisTaskDetailResponse(
@@ -12,6 +13,7 @@ data class AnalysisTaskDetailResponse(
 @Serializable
 data class AnalysisTaskDetailData(
     val id: String,
+    val assetId: String = "",
     val status: String = "",
     val stages: List<AnalysisStageData> = emptyList()
 )
@@ -32,7 +34,13 @@ data class AnalysisAttemptData(
     val id: String = "",
     val attemptNo: Int = 0,
     val createdAt: String = "",
-    val guardrailResult: AnalysisGuardrailData? = null
+    val guardrailResult: AnalysisGuardrailData? = null,
+    val image: AnalysisAttemptImageData? = null
+)
+
+@Serializable
+data class AnalysisAttemptImageData(
+    val imageUrl: String = ""
 )
 
 @Serializable
@@ -95,6 +103,7 @@ data class AnalysisValidateCheckRequest(
 data class AnalysisCheckpointEditRequest(
     val editedResult: String? = null,
     val editNote: String? = null,
+    val editedData: JsonObject? = null,
     val revert: Boolean? = null
 )
 

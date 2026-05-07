@@ -28,6 +28,7 @@ import com.videonatics.smartcapture.core.toNormalized
 import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.core.util.LocaleHelper
 import com.videonatics.smartcapture.feature.analysis.presenation.view.AnalysisPage
+import com.videonatics.smartcapture.feature.analysis.presenation.view.AttemptDetailPage
 import com.videonatics.smartcapture.feature.auth.presentation.view.AuthPage
 import com.videonatics.smartcapture.feature.capture.presentation.view.CapturePage
 import com.videonatics.smartcapture.feature.capturelist.presentation.view.ImageEditorPage
@@ -217,8 +218,31 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                             sharedViewModel.saveCurrentTaskId(taskId)
                             sharedViewModel.saveCurrentStageId(stageId)
                             navController.navigate(PageRoute.CAPTURE.name)
+                        },
+                        onAttemptClick = { tId, sId, aId ->
+                            navController.navigate("${PageRoute.ATTEMPT_DETAIL.name}/$tId/$sId/$aId")
                         }
                     )
+                }
+            }
+
+            composable(
+                route = "${PageRoute.ATTEMPT_DETAIL.name}/{taskId}/{stageId}/{attemptId}",
+                arguments = listOf(
+                    navArgument("taskId") { type = NavType.StringType },
+                    navArgument("stageId") { type = NavType.StringType },
+                    navArgument("attemptId") { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry("main_graph")
+                }
+                val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
+
+                HandleUnauthorized(sharedViewModel, navController)
+
+                LocalizedPage(sharedViewModel) {
+                    AttemptDetailPage(onBackClick = { navController.popBackStack() })
                 }
             }
 
@@ -243,7 +267,7 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     ImageEditorPage(onBack = { navController.popBackStack() },
                         imgUri = imageUri.toUri(),
                         onCrop = {fullImg, croppedImg,boundBox ->
-                            sharedViewModel.saveCapturedImage(fullImg, boundBox, rotation = 90f)
+                            sharedViewModel.saveCapturedImage(croppedImg, boundBox, rotation = 90f)
                             navController.popBackStack() })
                 }
             }
@@ -304,5 +328,5 @@ private fun LocalizedPage(
 }
 
 enum class PageRoute {
-    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, IMAGE_EDITOR, LANGUAGE, MY_CAPTURES, ANALYSIS
+    AUTH, SPLASH, HOME, TASK, CAPTURE, IMAGE_DETAILS, SETTINGS, CAPTURE_SETTINGS, IMAGE_EDITOR, LANGUAGE, MY_CAPTURES, ANALYSIS, ATTEMPT_DETAIL
 }

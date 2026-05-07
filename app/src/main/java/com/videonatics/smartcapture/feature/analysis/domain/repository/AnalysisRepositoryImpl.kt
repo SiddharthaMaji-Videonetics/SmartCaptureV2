@@ -35,7 +35,8 @@ interface AnalysisRepository {
      suspend fun editCheckpoint(
         checkpointId: String,
         editedResult: String?,
-        editNote: String?
+        editNote: String?,
+        editedData: Map<String, String>? = null
     ): Result<Unit>
 
      suspend fun revertCheckpoint(checkpointId: String): Result<Unit>
