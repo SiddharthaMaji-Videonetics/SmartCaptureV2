@@ -55,7 +55,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
-import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -158,22 +157,12 @@ fun ImageEditorPage(
         }
     }
 
-    if (interpreter == null) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator()
-        }
-        return
-    }
-
     if (bitmap == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text("No Image Loaded")
+            CircularProgressIndicator()
         }
         return
     }
@@ -216,6 +205,12 @@ fun ImageEditorPageComponent(
     val handleRadius = 32f
     val minCropSize = 200f
 
+    val effBox = remember(detectedBox, bitmap) {
+        detectedBox?.toPixel(bitmap.width.toFloat(), bitmap.height.toFloat())
+    }
+    val properCorners = remember(detectedCorners, bitmap) {
+        detectedCorners?.map { PointF(it.x * bitmap.width, it.y * bitmap.height) }
+    }
 
     // Fallback: default centered square when canvas size is first known
     LaunchedEffect(canvasSize) {
@@ -252,32 +247,22 @@ fun ImageEditorPageComponent(
         }
     }
 
-    // Crop is enabled when the detected box is fully inside the crop rect,
-    // or when the centres are close enough (the user has roughly aligned the crop to the box).
+    // Crop is enabled only when the detected bounding box (effBox) is fully inside the crop rect.
     val isCropEnabled = run {
-        if (detectedBox == null || cropRect == null ||
-            canvasSize.width == 0 || canvasSize.height == 0) return@run false
+        val cr = cropRect ?: return@run false
+        val eb = effBox ?: return@run false
+        if (canvasSize.width == 0 || canvasSize.height == 0) return@run false
         val iw = bitmap.width.toFloat()
         val ih = bitmap.height.toFloat()
         val sc = min(canvasSize.width.toFloat() / iw, canvasSize.height.toFloat() / ih)
         val ox = (canvasSize.width.toFloat() - iw * sc) / 2f
         val oy = (canvasSize.height.toFloat() - ih * sc) / 2f
-        // Detected box corners in canvas space
-        val bl = ox + detectedBox.left  * iw * sc
-        val bt = oy + detectedBox.top   * ih * sc
-        val br = ox + detectedBox.right * iw * sc
-        val bb = oy + detectedBox.bottom* ih * sc
-        val cr = cropRect!!
-        val fullyInside = cr.left <= bl && cr.top <= bt && cr.right >= br && cr.bottom >= bb
-        // "Almost centred": box centre within 20 % of crop rect's half-dimensions from crop centre
-        val cropCx = (cr.left + cr.right)  / 2f
-        val cropCy = (cr.top  + cr.bottom) / 2f
-        val boxCx  = (bl + br) / 2f
-        val boxCy  = (bt + bb) / 2f
-        val tolX = (cr.right  - cr.left)   * 0.20f
-        val tolY = (cr.bottom - cr.top)    * 0.20f
-        val almostCentred = abs(boxCx - cropCx) <= tolX && abs(boxCy - cropCy) <= tolY
-        fullyInside || almostCentred
+        // Convert effBox (bitmap pixel coords) to canvas coords and check containment
+        val bl = ox + eb.left   * sc
+        val bt = oy + eb.top    * sc
+        val br = ox + eb.right  * sc
+        val bb = oy + eb.bottom * sc
+        cr.left <= bl && cr.top <= bt && cr.right >= br && cr.bottom >= bb
     }
 
     Scaffold(
@@ -391,18 +376,6 @@ fun ImageEditorPageComponent(
                     }
                 }
         ) {
-
-            val properCorners = remember(detectedCorners, bitmap) {
-                detectedCorners?.map { 
-                    PointF(it.x * bitmap.width, it.y * bitmap.height)
-                }
-            }
-            val effBox = remember(detectedBox, bitmap) {
-                detectedBox?.toPixel(
-                    bitmap.width.toFloat(),
-                    bitmap.height.toFloat()
-                )
-            }
 
             ImageWithBoundingBox(
                 bitmap = bitmap,

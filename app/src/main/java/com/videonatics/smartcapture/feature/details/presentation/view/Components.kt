@@ -191,71 +191,36 @@ fun ImageWithBoundingBox(
             val offsetX = (canvasWidth - imageWidth * scale) / 2f
             val offsetY = (canvasHeight - imageHeight * scale) / 2f
 
-            withTransform({
-                translate(offsetX, offsetY)
-                scale(scale, scale)
-            }) {
+            // Draw image at explicit canvas coordinates so it fills the available space correctly
+            drawImage(
+                image = imageBitmap,
+                srcOffset = IntOffset.Zero,
+                srcSize = IntSize(imageWidth.toInt(), imageHeight.toInt()),
+                dstOffset = IntOffset(offsetX.toInt(), offsetY.toInt()),
+                dstSize = IntSize((imageWidth * scale).toInt(), (imageHeight * scale).toInt())
+            )
 
-                drawImage(
-                    image = imageBitmap,
-                    dstSize = IntSize(
-                        imageWidth.toInt(),
-                        imageHeight.toInt()
-                    )
-                )
-
-                if (corners != null && corners.size >= 4) {
-
-                    val path = Path()
-
-                    corners.forEachIndexed { index, pt ->
-
-                        if (index == 0) {
-                            path.moveTo(pt.x, pt.y)
-                        } else {
-                            path.lineTo(pt.x, pt.y)
-                        }
-                    }
-
-                    path.close()
-
-                    drawPath(
-                        path = path,
+            if (corners != null && corners.size >= 4) {
+                val path = Path()
+                corners.forEachIndexed { index, pt ->
+                    val cx = offsetX + pt.x * scale
+                    val cy = offsetY + pt.y * scale
+                    if (index == 0) path.moveTo(cx, cy) else path.lineTo(cx, cy)
+                }
+                path.close()
+                drawPath(path = path, color = boxColor, style = Stroke(width = strokeWidth.toPx()))
+            } else if (rect != null) {
+                val pivotX = offsetX + rect.centerX() * scale
+                val pivotY = offsetY + rect.centerY() * scale
+                withTransform({
+                    rotate(rotationAngle, Offset(pivotX, pivotY))
+                }) {
+                    drawRect(
                         color = boxColor,
-                        style = Stroke(
-                            width = strokeWidth.toPx() / scale
-                        )
+                        topLeft = Offset(offsetX + rect.left * scale, offsetY + rect.top * scale),
+                        size = Size(rect.width() * scale, rect.height() * scale),
+                        style = Stroke(width = strokeWidth.toPx())
                     )
-
-                } else if (rect != null) {
-
-                    withTransform({
-
-                        rotate(
-                            rotationAngle,
-                            pivot = Offset(
-                                rect.centerX(),
-                                rect.centerY()
-                            )
-                        )
-
-                    }) {
-
-                        drawRect(
-                            color = boxColor,
-                            topLeft = Offset(
-                                rect.left,
-                                rect.top
-                            ),
-                            size = Size(
-                                rect.width(),
-                                rect.height()
-                            ),
-                            style = Stroke(
-                                width = strokeWidth.toPx() / scale
-                            )
-                        )
-                    }
                 }
             }
         }
