@@ -25,6 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
 import com.videonatics.smartcapture.core.toNormalized
+import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.core.util.LocaleHelper
 import com.videonatics.smartcapture.feature.analysis.presenation.view.AnalysisPage

@@ -296,7 +296,8 @@ fun ImageEditorPageComponent(
                                     originalBitmap = bitmap,
                                     cropRect = it,
                                     containerWidth = canvasSize.width.toFloat(),
-                                    containerHeight = canvasSize.height.toFloat()
+                                    containerHeight = canvasSize.height.toFloat(),
+                                    detectedBoxInBitmapPixels = effBox
                                 )
                                 onCrop(bitmap, cropped, boundBox)
                             }
@@ -653,7 +654,8 @@ private fun cropBitmapFromRect(
     originalBitmap: Bitmap,
     cropRect: CropRect,
     containerWidth: Float,
-    containerHeight: Float
+    containerHeight: Float,
+    detectedBoxInBitmapPixels: RectF? = null
 ): Pair<Bitmap, RectF> {
 
     val bitmapWidth =
@@ -701,12 +703,21 @@ private fun cropBitmapFromRect(
 
     val croppedBitmap = Bitmap.createBitmap(originalBitmap, left, top, width, height)
 
-    val rectF = RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+    // If a detected box is provided, compute its position inside the cropped region
+    // and normalize it to the cropped bitmap dimensions so CaptureDetailsPage can
+    // display it correctly on top of the cropped image.
+    val boundBox = if (detectedBoxInBitmapPixels != null) {
+        val boxLeft   = (detectedBoxInBitmapPixels.left   - left).coerceIn(0f, width.toFloat())
+        val boxTop    = (detectedBoxInBitmapPixels.top    - top ).coerceIn(0f, height.toFloat())
+        val boxRight  = (detectedBoxInBitmapPixels.right  - left).coerceIn(0f, width.toFloat())
+        val boxBottom = (detectedBoxInBitmapPixels.bottom - top ).coerceIn(0f, height.toFloat())
+        RectF(boxLeft, boxTop, boxRight, boxBottom).toNormalized(width.toFloat(), height.toFloat())
+    } else {
+        RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
+            .toNormalized(bitmapWidth, bitmapHeight)
+    }
 
-    return Pair(
-        croppedBitmap,
-        rectF.toNormalized(bitmapWidth, bitmapHeight)
-    )
+    return Pair(croppedBitmap, boundBox)
 }
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHandle(
     x: Float,
