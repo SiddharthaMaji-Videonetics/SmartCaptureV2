@@ -38,7 +38,8 @@ data class AnalysisAttempt(
     val attemptNo: Int,
     val createdAt: String,
     val guardrailPassed: Boolean?,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val imageCaptureId: String? = null
 )
 
 data class AnalysisStage(

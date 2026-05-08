@@ -27,6 +27,7 @@ data class AnalysisUiState(
     val stageType: String = "",
     val stageStatus: String = "",
     val attempts: List<AnalysisAttempt> = emptyList(),
+    val latestImageUrl: String? = null,
     val checks: List<AnalysisCheck> = emptyList(),
     val hasAnalysis: Boolean = false,
     val latestAnalysisPassed: Boolean = false,
@@ -72,6 +73,8 @@ class AnalysisViewModel @Inject constructor(
                     onSuccess = { detail ->
                         val stage = detail.stages.find { it.id == stageId }
                             ?: detail.stages.lastOrNull()
+                        val attempts = stage?.attempts ?: emptyList()
+                        val latestImageUrl = attempts.maxByOrNull { it.attemptNo }?.imageUrl
                         _state.update { s ->
                             s.copy(
                                 isLoading = false,
@@ -79,7 +82,8 @@ class AnalysisViewModel @Inject constructor(
                                 taskStatus = detail.status,
                                 stageType = stage?.stageType.orEmpty(),
                                 stageStatus = stage?.status.orEmpty(),
-                                attempts = stage?.attempts ?: emptyList(),
+                                attempts = attempts,
+                                latestImageUrl = latestImageUrl,
                                 checks = stage?.latestAnalysis?.checks ?: emptyList(),
                                 hasAnalysis = stage?.latestAnalysis != null,
                                 latestAnalysisPassed = stage?.latestAnalysis?.passed ?: false,

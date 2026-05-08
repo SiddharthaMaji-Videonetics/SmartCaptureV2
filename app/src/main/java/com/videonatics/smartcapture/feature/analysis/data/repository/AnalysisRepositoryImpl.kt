@@ -13,11 +13,13 @@ import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisTaskDe
 import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisValidatedCheck
 import com.videonatics.smartcapture.feature.analysis.domain.model.OcrCandidate
 import com.videonatics.smartcapture.feature.analysis.domain.repository.AnalysisRepository
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
 import javax.inject.Inject
@@ -45,11 +47,13 @@ class AnalysisRepositoryImpl @Inject constructor(
                                 attemptNo = attempt.attemptNo,
                                 createdAt = attempt.createdAt,
                                 guardrailPassed = attempt.guardrailResult?.passed,
-                                imageUrl = attempt.image?.imageUrl?.takeIf { it.isNotEmpty() }
+                                imageUrl = attempt.imageCapture?.imageUrl?.takeIf { it.isNotEmpty() },
+                                imageCaptureId = attempt.imageCapture?.id?.takeIf { it.isNotEmpty() }
                             )
                         },
                         latestAnalysis = stage.analysisResults.firstOrNull()?.toAnalysisResult(),
-                        allAnalysisResults = stage.analysisResults.map { it.toAnalysisResult() }
+                        allAnalysisResults = stage.analysisResults.map { it.toAnalysisResult() },
+
                     )
                 }
             )
@@ -155,23 +159,61 @@ private fun Map<String, String>.toJsonObject(): JsonObject = buildJsonObject {
 }
 
 private fun JsonElement?.toStringMap(): Map<String, String> {
-    if (this == null || this !is JsonObject) return emptyMap()
+
+    val jsonObject: JsonObject = when (this) {
+
+        null -> return emptyMap()
+
+        is JsonObject -> this
+
+        // Handles JSON stored as string:
+        // "{\"name\":\"test\",\"age\":23}"
+        is JsonPrimitive -> {
+            runCatching {
+                Json.parseToJsonElement(content) as? JsonObject
+            }.getOrNull() ?: return emptyMap()
+        }
+
+        else -> return emptyMap()
+    }
+
     return buildMap {
-        for ((k, v) in entries) {
+
+        for ((k, v) in jsonObject.entries) {
+
             when (v) {
-                is JsonPrimitive -> put(k, v.content)
+
+                is JsonPrimitive -> {
+                    put(k, v.contentOrNull ?: v.toString())
+                }
+
                 is JsonArray -> {
+
                     val joined = v.joinToString(", ") { el ->
+
                         when (el) {
-                            is JsonPrimitive -> el.content
-                            is JsonObject -> (el["text"] as? JsonPrimitive)?.content ?: el.toString()
-                            else -> el.toString()
+
+                            is JsonPrimitive ->
+                                el.contentOrNull ?: el.toString()
+
+                            is JsonObject ->
+                                el.toString()
+
+                            else ->
+                                el.toString()
                         }
                     }
+
                     put(k, joined)
                 }
-                is JsonObject -> put(k, v.toString())
-                else -> Unit
+
+                is JsonObject -> {
+                    put(k, v.toString())
+                }
+
+                else -> {
+                    put(k, v.toString())
+                }
             }
         }
     }

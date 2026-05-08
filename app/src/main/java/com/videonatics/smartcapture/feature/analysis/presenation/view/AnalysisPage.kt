@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.analysis.presenation.view
 
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -314,7 +315,7 @@ private fun AnalysisContent(
         }
 
         // Latest attempt image
-        val latestImageUrl = state.attempts.maxByOrNull { it.attemptNo }?.imageUrl
+        val latestImageUrl = state.latestImageUrl
         if (latestImageUrl != null) {
             Box(
                 modifier = Modifier
@@ -329,10 +330,22 @@ private fun AnalysisContent(
                     contentScale = ContentScale.Fit
                 )
             }
+        }else{
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            ) {
+                Text("No image", modifier = Modifier.align(Alignment.Center), color = Color.White)
+            }
         }
 
         // Waiting spinner
         if (!state.hasAnalysis) { WaitingRow() }
+
+
 
         // Analysis checks
         if (state.hasAnalysis && state.checks.isNotEmpty()) {
@@ -379,6 +392,7 @@ private fun ChecksSectionCard(
     onEditCheck: (AnalysisCheck) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+
         SectionLabel(title)
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -404,8 +418,12 @@ internal fun CheckRow(check: AnalysisCheck, isFrozen: Boolean, assetId: String =
     val isPass = effective.uppercase() in setOf("PASS", "PASSED")
     val pill = resultPill(effective)
     val dataChips = buildList {
-        if (check.checkName == "fat_ne_id_ocr" && assetId.isNotEmpty()) {
-            add("FAT ID" to assetId)
+        if (check.checkName == "fat_ne_id_ocr") {
+            val fatId = check.data["primaryNumber"]
+            fatId?.apply {
+                add("FAT ID" to this)
+            }
+
         }
         addAll(buildDataChips(check.checkName, check.effectiveData))
     }

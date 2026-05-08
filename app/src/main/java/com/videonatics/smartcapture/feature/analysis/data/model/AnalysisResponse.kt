@@ -35,11 +35,12 @@ data class AnalysisAttemptData(
     val attemptNo: Int = 0,
     val createdAt: String = "",
     val guardrailResult: AnalysisGuardrailData? = null,
-    val image: AnalysisAttemptImageData? = null
+    val imageCapture: AnalysisAttemptImageData? = null
 )
 
 @Serializable
 data class AnalysisAttemptImageData(
+    val id: String = "",
     val imageUrl: String = ""
 )
 
