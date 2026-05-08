@@ -98,16 +98,18 @@ fun CaptureDetailsPage(
     LaunchedEffect(uploadState) {
         when (uploadState) {
             is CaptureDetailsViewModel.UploadState.Success -> {
-                // Snapshot before clearing
                 val uploadedStageId = sharedViewModel.currentStageId.value
                 val uploadedTaskId = sharedViewModel.currentTaskId.value
                 Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
                 sharedViewModel.deassignCurrentCapture()
                 sharedViewModel.saveCurrentStageId(null)
                 sharedViewModel.saveCurrentTaskId(null)
-                navController.popBackStack(PageRoute.HOME.name, inclusive = false)
                 if (!uploadedTaskId.isNullOrEmpty() && !uploadedStageId.isNullOrEmpty()) {
-                    navController.navigate("${PageRoute.ANALYSIS.name}/$uploadedTaskId/$uploadedStageId")
+                    navController.navigate("${PageRoute.ANALYSIS.name}/$uploadedTaskId/$uploadedStageId") {
+                        popUpTo(PageRoute.HOME.name) { inclusive = false }
+                    }
+                } else {
+                    navController.popBackStack(PageRoute.HOME.name, inclusive = false)
                 }
             }
             is CaptureDetailsViewModel.UploadState.Error -> {

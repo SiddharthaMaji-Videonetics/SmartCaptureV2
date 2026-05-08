@@ -999,11 +999,12 @@ fun ImageProxy.averageLuma(): Float {
 }
 
 fun toGrayscale(src: Bitmap): Bitmap {
-    val bmp = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+    val softSrc = if (src.config == Bitmap.Config.HARDWARE) src.copy(Bitmap.Config.ARGB_8888, false) else src
+    val bmp = Bitmap.createBitmap(softSrc.width, softSrc.height, Bitmap.Config.ARGB_8888)
 
-    for (y in 0 until src.height) {
-        for (x in 0 until src.width) {
-            val p = src.getPixel(x, y)
+    for (y in 0 until softSrc.height) {
+        for (x in 0 until softSrc.width) {
+            val p = softSrc.getPixel(x, y)
             val r = Color.red(p)
             val g = Color.green(p)
             val b = Color.blue(p)
@@ -1166,7 +1167,9 @@ fun uriToBitmap(
             uri
         )
 
-        ImageDecoder.decodeBitmap(source)
+        ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
 
     } else {
 

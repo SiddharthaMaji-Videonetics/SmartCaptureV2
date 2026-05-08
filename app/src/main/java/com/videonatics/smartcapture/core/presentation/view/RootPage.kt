@@ -220,6 +220,11 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                             sharedViewModel.saveCurrentStageId(stageId)
                             navController.navigate(PageRoute.CAPTURE.name)
                         },
+                        onRetakeFromGallery = { uri ->
+                            sharedViewModel.saveCurrentTaskId(taskId)
+                            sharedViewModel.saveCurrentStageId(stageId)
+                            navController.navigate("${PageRoute.IMAGE_EDITOR.name}/${Uri.encode(uri.toString())}?uploadAfterCrop=true")
+                        },
                         onAttemptClick = { tId, sId, aId ->
                             navController.navigate("${PageRoute.ATTEMPT_DETAIL.name}/$tId/$sId/$aId")
                         }
@@ -248,15 +253,16 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
             }
 
             composable(
-                route = "${PageRoute.IMAGE_EDITOR.name}/{imgUri}",
+                route = "${PageRoute.IMAGE_EDITOR.name}/{imgUri}?uploadAfterCrop={uploadAfterCrop}",
                 arguments = listOf(
                     navArgument("imgUri") { type = NavType.StringType },
+                    navArgument("uploadAfterCrop") { type = NavType.BoolType; defaultValue = false }
                 )
             ) { backStackEntry ->
 
-                val encodedUri =
-                    backStackEntry.arguments?.getString("imgUri")
+                val encodedUri = backStackEntry.arguments?.getString("imgUri")
                 val imageUri = Uri.decode(encodedUri ?: "")
+                val uploadAfterCrop = backStackEntry.arguments?.getBoolean("uploadAfterCrop") ?: false
                 val parentEntry = remember(backStackEntry) {
                     navController.getBackStackEntry("main_graph")
                 }
@@ -267,9 +273,14 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 LocalizedPage(sharedViewModel) {
                     ImageEditorPage(onBack = { navController.popBackStack() },
                         imgUri = imageUri.toUri(),
-                        onCrop = {fullImg, croppedImg,boundBox ->
+                        onCrop = { fullImg, croppedImg, boundBox ->
                             sharedViewModel.saveCapturedImage(croppedImg, boundBox, rotation = 90f)
-                            navController.popBackStack() })
+                            if (uploadAfterCrop) {
+                                navController.navigate(PageRoute.IMAGE_DETAILS.name)
+                            } else {
+                                navController.popBackStack()
+                            }
+                        })
                 }
             }
 

@@ -17,8 +17,9 @@ object ImageQualityAnalyzer {
     ): ImageQualityResult {
 
         return try {
+            val softBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
             val mat = Mat()
-            Utils.bitmapToMat(bitmap, mat)
+            Utils.bitmapToMat(softBitmap, mat)
 
             val gray = Mat()
             Imgproc.cvtColor(mat, gray, Imgproc.COLOR_BGR2GRAY)

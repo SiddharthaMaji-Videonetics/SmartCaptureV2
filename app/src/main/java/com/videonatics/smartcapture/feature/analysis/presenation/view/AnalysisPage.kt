@@ -1,5 +1,6 @@
 package com.videonatics.smartcapture.feature.analysis.presenation.view
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,12 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisValida
 import com.videonatics.smartcapture.feature.analysis.domain.model.OcrCandidate
 import com.videonatics.smartcapture.feature.analysis.presenation.viewmodel.AnalysisUiState
 import com.videonatics.smartcapture.feature.analysis.presenation.viewmodel.AnalysisViewModel
+import com.videonatics.smartcapture.feature.capturelist.presentation.view.ImagePickerBottomSheet
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
 private val terminalPassedStatuses = setOf("PASSED", "OVERRIDE_APPROVED", "EXEMPTED")
@@ -140,16 +142,25 @@ fun AnalysisPage(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {},
     onRetake: () -> Unit = {},
+    onRetakeFromGallery: (Uri) -> Unit = {},
     onAttemptClick: (taskId: String, stageId: String, attemptId: String) -> Unit = { _, _, _ -> },
     vm: AnalysisViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var editingCheck by remember { mutableStateOf<AnalysisCheck?>(null) }
+    var showCaptureSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         vm.events.collect { snackbarHostState.showSnackbar(it) }
     }
+
+    ImagePickerBottomSheet(
+        showSheet = showCaptureSheet,
+        onDismiss = { showCaptureSheet = false },
+        onCaptureImage = { showCaptureSheet = false; onRetake() },
+        onImageSelected = { uri -> showCaptureSheet = false; onRetakeFromGallery(uri) }
+    )
 
     editingCheck?.let { check ->
         CheckEditDialog(
@@ -173,7 +184,7 @@ fun AnalysisPage(
         snackbarHostState = snackbarHostState,
         onBackClick = onBackClick,
         onRefresh = { vm.refresh() },
-        onRetake = onRetake,
+        onRetake = { showCaptureSheet = true },
         onEditCheck = { editingCheck = it },
         onAttemptClick = { attemptId ->
             onAttemptClick(vm.taskId, vm.stageId, attemptId)
@@ -292,7 +303,7 @@ private fun AnalysisContent(
             }
         }
 
-        // Stage type heading + FAT ID
+        // Stage type heading
         if (state.stageType.isNotEmpty()) {
             Text(
                 text = state.stageType.toDisplayName(),
@@ -301,12 +312,23 @@ private fun AnalysisContent(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        if (state.assetId.isNotEmpty()) {
-            Text(
-                text = "FAT ID: ${state.assetId}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+        // Latest attempt image
+        val latestImageUrl = state.attempts.maxByOrNull { it.attemptNo }?.imageUrl
+        if (latestImageUrl != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            ) {
+                AuthenticatedNetworkImage(
+                    url = latestImageUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
 
         // Waiting spinner
@@ -318,6 +340,7 @@ private fun AnalysisContent(
                 title = "ANALYSIS",
                 checks = state.checks,
                 isFrozen = isFrozen,
+                assetId = state.assetId,
                 onEditCheck = onEditCheck
             )
         }
@@ -352,6 +375,7 @@ private fun ChecksSectionCard(
     title: String,
     checks: List<AnalysisCheck>,
     isFrozen: Boolean,
+    assetId: String = "",
     onEditCheck: (AnalysisCheck) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -364,7 +388,7 @@ private fun ChecksSectionCard(
         ) {
             Column {
                 checks.forEachIndexed { index, check ->
-                    CheckRow(check = check, isFrozen = isFrozen, onEditClick = { onEditCheck(check) })
+                    CheckRow(check = check, isFrozen = isFrozen, assetId = assetId, onEditClick = { onEditCheck(check) })
                     if (index < checks.size - 1) {
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -375,11 +399,16 @@ private fun ChecksSectionCard(
 }
 
 @Composable
-internal fun CheckRow(check: AnalysisCheck, isFrozen: Boolean, onEditClick: () -> Unit) {
+internal fun CheckRow(check: AnalysisCheck, isFrozen: Boolean, assetId: String = "", onEditClick: () -> Unit) {
     val effective = check.effectiveResult
     val isPass = effective.uppercase() in setOf("PASS", "PASSED")
     val pill = resultPill(effective)
-    val dataChips = buildDataChips(check.checkName, check.effectiveData)
+    val dataChips = buildList {
+        if (check.checkName == "fat_ne_id_ocr" && assetId.isNotEmpty()) {
+            add("FAT ID" to assetId)
+        }
+        addAll(buildDataChips(check.checkName, check.effectiveData))
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
 
@@ -869,11 +898,7 @@ private fun AttemptRow(attempt: AnalysisAttempt, isLatest: Boolean, onClick: () 
                 Text(formatTimestamp(attempt.createdAt), style = MaterialTheme.typography.bodySmall, color = Color(0xFF78909C))
             }
         }
-        when (attempt.guardrailPassed) {
-            true  -> { val p = resultPill("PASS"); ResultPill("GATE PASS", p.fg, p.bg) }
-            false -> { val p = resultPill("FAIL"); ResultPill("GATE FAIL", p.fg, p.bg) }
-            null  -> Icon(androidx.compose.material.icons.Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF78909C), modifier = Modifier.size(18.dp))
-        }
+        Icon(androidx.compose.material.icons.Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF78909C), modifier = Modifier.size(18.dp))
     }
 }
 
