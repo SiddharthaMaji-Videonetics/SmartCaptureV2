@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.videonatics.smartcapture.core.domain.model.CaptureModel
 import com.videonatics.smartcapture.feature.language.domain.model.LanguageModel
 import com.videonatics.smartcapture.core.domain.repository.CoreRepository
+import com.videonatics.smartcapture.core.data.remote.websocket.SocketService
 import com.videonatics.smartcapture.feature.auth.data.repository.AuthRepository
 import com.videonatics.smartcapture.feature.capturelist.domain.repository.CaptureRepository
 import com.videonatics.smartcapture.feature.language.domain.repository.LanguageRepository
@@ -29,7 +30,8 @@ class SharedCoreViewModel @Inject constructor(
     private val coreRepository: CoreRepository,
     private val languageRepository: LanguageRepository,
     private val authRepository: AuthRepository,
-    private val captureRepository: CaptureRepository
+    private val captureRepository: CaptureRepository,
+    private val socketService: SocketService
 ) : ViewModel() {
 
     private val _capturedImage = MutableStateFlow<Bitmap?>(null)
@@ -65,6 +67,24 @@ class SharedCoreViewModel @Inject constructor(
     private var imageQuality: Float = 0f
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
+
+    val socketEvents = socketService.events
+
+    init {
+        viewModelScope.launch {
+            if (authRepository.getLoggedIn()) {
+                socketService.connect()
+            }
+        }
+    }
+
+    fun startSocket() {
+        socketService.connect()
+    }
+
+    fun stopSocket() {
+        socketService.disconnect()
+    }
 
     val capturedImagesList: StateFlow<List<CaptureModel>> = captureRepository.getAllCaptures()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -245,6 +265,7 @@ class SharedCoreViewModel @Inject constructor(
 
         viewModelScope.launch {
             authRepository.logout()
+            stopSocket()
             _showSessionExpiredDialog.value = true
         }
     }

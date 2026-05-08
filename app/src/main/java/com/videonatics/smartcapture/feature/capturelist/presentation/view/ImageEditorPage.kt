@@ -2,6 +2,7 @@ package com.videonatics.smartcapture.feature.capturelist.presentation.view
 
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import android.net.Uri
 import android.util.Log
@@ -24,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -50,7 +50,6 @@ import com.videonatics.smartcapture.core.toPixel
 import com.videonatics.smartcapture.core.uriToBitmap
 import com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel.ImageEditorViewModel
 import com.videonatics.smartcapture.feature.details.presentation.view.ImageWithBoundingBox
-import com.videonatics.smartcapture.feature.details.presentation.view.ZoomableImageWithBoundingBox
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -92,6 +91,7 @@ fun ImageEditorPage(
 
     val detectedBoxFlow = vm.detectedBox.collectAsState(null)
     val detectedBoxAngleFlow = vm.detectedBoxAngle.collectAsState(null)
+    val detectedCornersFlow = vm.detectedCorners.collectAsState(null)
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
@@ -138,19 +138,25 @@ fun ImageEditorPage(
             }
         }
     }
-    DisposableEffect(Unit) {
-        onDispose {
-            interpreter?.close()
-            gpuDelegate?.close()
-        }
-    }
+
     val bitmap = remember(imgUri) {
         imgUri?.let {
             uriToBitmap(context, it)
         }
     }
 
+    LaunchedEffect(bitmap, interpreter) {
+        if (bitmap != null && interpreter != null) {
+            vm.precessImage(interpreter, bitmap)
+        }
+    }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            interpreter?.close()
+            gpuDelegate?.close()
+        }
+    }
 
     if (interpreter == null) {
         Box(
@@ -163,26 +169,21 @@ fun ImageEditorPage(
     }
 
     if (bitmap == null) {
-
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text("No Image Loaded")
         }
-
         return
-    }else{
-        vm.precessImage( interpreter, bitmap)
     }
-
-
 
     ImageEditorPageComponent(
         title = title,
         bitmap = bitmap,
         detectedBox = detectedBoxFlow.value,
         detectedBoxAngle = detectedBoxAngleFlow.value,
+        detectedCorners = detectedCornersFlow.value,
         onBack = onBack,
         onCrop = onCrop,
         onCropSizeChange = { _, _ -> }
@@ -198,19 +199,15 @@ fun ImageEditorPageComponent(
     onCropSizeChange: (Bitmap, RectF) -> Unit = { _, _ -> },
     onCrop: (Bitmap, Bitmap, RectF) -> Unit = { _, _, _ -> },
     detectedBox: RectF?,
-    detectedBoxAngle: Float? = null
+    detectedBoxAngle: Float? = null,
+    detectedCorners: List<PointF>? = null
 ) {
-    val imageBitmap = remember(bitmap) {
-        bitmap.asImageBitmap()
-    }
     var cropRect by remember {
         mutableStateOf<CropRect?>(null)
     }
     var canvasSize by remember {
         mutableStateOf(IntSize.Zero)
     }
-
-
 
     var activeHandle by remember {
         mutableStateOf(DragHandle.NONE)
@@ -395,25 +392,27 @@ fun ImageEditorPageComponent(
                 }
         ) {
 
-            if (detectedBox != null) {
-                val effBox = detectedBox.toPixel(
-                    imageBitmap.width.toFloat(),
-                    imageBitmap.height.toFloat()
-                )
-                ImageWithBoundingBox(
-                    bitmap = imageBitmap.asAndroidBitmap(),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                    rect = effBox,
-                    rotationAngle = detectedBoxAngle ?: 0f
-                )
-            } else {
-                ImageWithBoundingBox(
-                    bitmap = imageBitmap.asAndroidBitmap(),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
+            val properCorners = remember(detectedCorners, bitmap) {
+                detectedCorners?.map { 
+                    PointF(it.x * bitmap.width, it.y * bitmap.height)
+                }
+            }
+            val effBox = remember(detectedBox, bitmap) {
+                detectedBox?.toPixel(
+                    bitmap.width.toFloat(),
+                    bitmap.height.toFloat()
                 )
             }
+
+            ImageWithBoundingBox(
+                bitmap = bitmap,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+                rect = if (properCorners == null) effBox else null,
+                corners = properCorners,
+                rotationAngle = if (properCorners == null) (detectedBoxAngle ?: 0f) else 0f,
+                boxColor = Color(0xFF00D77B)
+            )
 
             if (detectedBox == null) {
                 Text(

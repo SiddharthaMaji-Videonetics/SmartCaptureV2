@@ -3,6 +3,7 @@ package com.videonatics.smartcapture.core
 object Constants {
     const val API_VAR = "/api/v1/"
     const val BASE_URL = "https://airtel.videonetics.com:2443"
+    const val WS_BASE_URL = "wss://airtel.videonetics.com:2443/ws"
 
     
     object Endpoints {

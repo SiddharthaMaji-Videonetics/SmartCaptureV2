@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.capturelist.presentation.viewmodel
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import androidx.lifecycle.ViewModel
 import com.videonatics.smartcapture.core.parseOutput
@@ -22,6 +23,9 @@ class ImageEditorViewModel @Inject constructor() : ViewModel() {
 
     private val _detectedBoxAngle = MutableStateFlow<Float?>(null)
     val detectedBoxAngle: Flow<Float?> = _detectedBoxAngle
+
+    private val _detectedCorners = MutableStateFlow<List<PointF>?>(null)
+    val detectedCorners: Flow<List<PointF>?> = _detectedCorners
 
     fun precessImage(
         interpreter: Interpreter?,
@@ -46,9 +50,13 @@ class ImageEditorViewModel @Inject constructor() : ViewModel() {
         if (detection != null) {
             _detectedBox.value = detection.toRect().toNormalized(imageWidth, imageHeight)
             _detectedBoxAngle.value = (detection.angle * 180.0 / PI).toFloat()
+            _detectedCorners.value = detection.corners.map {
+                PointF(it.x / imageWidth, it.y / imageHeight)
+            }
         } else {
             _detectedBox.value = null
             _detectedBoxAngle.value = null
+            _detectedCorners.value = null
         }
     }
 }
