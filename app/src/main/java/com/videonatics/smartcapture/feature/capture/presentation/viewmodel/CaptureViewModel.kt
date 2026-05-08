@@ -115,6 +115,11 @@ class CaptureViewModel @Inject constructor(
     private var _captureTrigger = MutableStateFlow<Boolean>(false)
     var captureTrigger = _captureTrigger
 
+    private val _isLevel = MutableStateFlow(false)
+    fun updateLevel(level: Boolean) { _isLevel.value = level }
+
+    private val _isBoundBoxEdit = MutableStateFlow(false)
+    fun updateBoundBoxEdit(editing: Boolean) { _isBoundBoxEdit.value = editing }
 
     //stability ----
 
@@ -173,8 +178,9 @@ class CaptureViewModel @Inject constructor(
                     hint.h in -capturableHTolerance..capturableHTolerance &&
                     hint.v in -capturableVTolerance..capturableVTolerance
 
-            if (capturable && !wasCapturable) speakIfReady()
-            wasCapturable = capturable
+            val captureButtonVisible = capturable && _isLevel.value && !_isBoundBoxEdit.value
+            if (captureButtonVisible && !wasCapturable) speakIfReady()
+            wasCapturable = captureButtonVisible
             _isCapturable.value = capturable
 
             _inst.value = hint

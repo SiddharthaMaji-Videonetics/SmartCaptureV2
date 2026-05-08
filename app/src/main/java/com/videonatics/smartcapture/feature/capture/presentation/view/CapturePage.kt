@@ -190,7 +190,9 @@ fun CapturePage(
                 },
                 onImageDimensionsCaptured = { w, h ->
                     sharedViewModel.saveSourceImageDimensions(w, h)
-                }
+                },
+                onLevelChange = { viewModel.updateLevel(it) },
+                onBoundBoxEditChange = { viewModel.updateBoundBoxEdit(it) }
             ) { detections ->
                 viewModel.setDetection(detections)
             }
@@ -233,6 +235,8 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->},
                          onFocusRectRect:(RectF)-> Unit = {},
                          onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
+                         onLevelChange: (Boolean) -> Unit = {},
+                         onBoundBoxEditChange: (Boolean) -> Unit = {},
                          onDetectionChanges: (List<Detection>) -> Unit = {}) {
     var isBoundBoxEdit by remember { mutableStateOf(false) }
     var isLevel by remember { mutableStateOf(false) }
@@ -278,6 +282,7 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 isCalibrated = tilt.isCalibrated,
                 onLevel = {
                     isLevel = it
+                    onLevelChange(it)
                 },
                 modifier = Modifier.matchParentSize()
             )
@@ -287,7 +292,10 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                     torchEnabled = it
                 },
                 isBoundBoxEdit = isBoundBoxEdit,
-                onBoundBoxEdit = { isBoundBoxEdit = it }
+                onBoundBoxEdit = {
+                    isBoundBoxEdit = it
+                    onBoundBoxEditChange(it)
+                }
             )
         }
     }
