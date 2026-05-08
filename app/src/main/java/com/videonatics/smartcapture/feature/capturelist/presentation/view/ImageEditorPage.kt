@@ -81,7 +81,7 @@ fun ImageEditorPage(
     title: String = "Image Editor",
     imgUri: Uri?,
     onBack: () -> Unit = {},
-    onCrop: (Bitmap, Bitmap, RectF) -> Unit = {_, _, _->}
+    onCrop: (Bitmap, Bitmap, RectF, Float) -> Unit = { _, _, _, _ -> }
 ) {
     val vm = hiltViewModel<ImageEditorViewModel>()
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
@@ -186,7 +186,7 @@ fun ImageEditorPageComponent(
     bitmap: Bitmap,
     onBack: () -> Unit = {},
     onCropSizeChange: (Bitmap, RectF) -> Unit = { _, _ -> },
-    onCrop: (Bitmap, Bitmap, RectF) -> Unit = { _, _, _ -> },
+    onCrop: (Bitmap, Bitmap, RectF, Float) -> Unit = { _, _, _, _ -> },
     detectedBox: RectF?,
     detectedBoxAngle: Float? = null,
     detectedCorners: List<PointF>? = null
@@ -299,7 +299,7 @@ fun ImageEditorPageComponent(
                                     containerHeight = canvasSize.height.toFloat(),
                                     detectedBoxInBitmapPixels = effBox
                                 )
-                                onCrop(bitmap, cropped, boundBox)
+                                onCrop(bitmap, cropped, boundBox, detectedBoxAngle ?: 0f)
                             }
                         }
                     ) {
@@ -742,7 +742,7 @@ private fun ImageEditorPagePreview() {
             title = "Image Editor",
             bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888),
             onBack = {},
-            onCrop = { _, _, _ -> },
+            onCrop = { _, _, _, _ -> },
             detectedBox = null
         )
     }

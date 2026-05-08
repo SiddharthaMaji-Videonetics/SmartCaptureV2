@@ -273,8 +273,8 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                 LocalizedPage(sharedViewModel) {
                     ImageEditorPage(onBack = { navController.popBackStack() },
                         imgUri = imageUri.toUri(),
-                        onCrop = { fullImg, croppedImg, boundBox ->
-                            sharedViewModel.saveCapturedImage(croppedImg, boundBox, rotation = 90f)
+                        onCrop = { fullImg, croppedImg, boundBox, rotation ->
+                            sharedViewModel.saveCapturedImage(croppedImg, boundBox, rotation = rotation)
                             if (uploadAfterCrop) {
                                 navController.navigate(PageRoute.IMAGE_DETAILS.name)
                             } else {
