@@ -187,7 +187,12 @@ private fun AttemptDetailContent(state: AttemptDetailUiState, paddingValues: Pad
             ) {
                 Column {
                     state.checks.forEachIndexed { index, check ->
-                        CheckRow(check = check, isFrozen = true, onEditClick = {})
+                        CheckRow(
+                            check = check,
+                            isFrozen = true,
+                            onEditClick = {},
+                            onConfirmClick = {}
+                        )
                         if (index < state.checks.size - 1) {
                             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         }

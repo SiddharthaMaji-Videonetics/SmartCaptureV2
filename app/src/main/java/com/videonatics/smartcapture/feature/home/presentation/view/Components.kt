@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -16,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
@@ -181,7 +185,10 @@ private fun MyTaskScreenWithViewModel(
         MyTaskContent(
             myTasks = myTasks,
             isLoading = isLoading,
-            onTaskOpen = onTaskOpen
+            onTaskOpen = onTaskOpen,
+            onRefresh = {
+                viewModel.loadMyTasks()
+            }
         )
     }
 }
@@ -190,6 +197,7 @@ private fun MyTaskScreenWithViewModel(
 fun MyTaskContent(
     myTasks: List<MyTaskModel>,
     isLoading: Boolean,
+    onRefresh:() -> Unit = {},
     onTaskOpen: (String) -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
@@ -204,7 +212,36 @@ fun MyTaskContent(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No task assigned yet!")
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+
+                        IconButton(
+                            onClick = {
+                                onRefresh.invoke()
+                            },
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "No task assigned yet!",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
                 }
             }else{
                 if (isLandscape) {

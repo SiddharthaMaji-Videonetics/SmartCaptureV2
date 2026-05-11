@@ -116,9 +116,41 @@ class AnalysisViewModel @Inject constructor(
             editedByOperator = editedByOperator
         ).onSuccess {
             refresh()
-            _events.send("Validated")
+            _events.send("Confirmed")
         }.onFailure {
-            _events.send(it.message ?: "Validate failed")
+            _events.send(it.message ?: "Confirm failed")
+        }
+        _state.update { it.copy(isSubmitting = false) }
+    }
+
+    fun validateAll() = viewModelScope.launch {
+        val unvalidated = _state.value.checks.filter { !it.carryForward }
+        if (unvalidated.isEmpty()) return@launch
+
+        _state.update { it.copy(isSubmitting = true) }
+        var allSuccess = true
+        var lastError: String? = null
+
+        unvalidated.forEach { check ->
+            repository.validateCheck(
+                taskId = taskId,
+                checkName = check.checkName,
+                result = check.effectiveResult,
+                confidence = 1.0,
+                validatedAtStageId = stageId,
+                editedByOperator = check.isEdited
+            ).onFailure {
+                allSuccess = false
+                lastError = it.message
+            }
+        }
+
+        if (allSuccess) {
+            refresh()
+            _events.send("All checks confirmed")
+        } else {
+            refresh()
+            _events.send(lastError ?: "Some checks failed to confirm")
         }
         _state.update { it.copy(isSubmitting = false) }
     }

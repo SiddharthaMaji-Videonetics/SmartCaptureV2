@@ -44,9 +44,9 @@ object NetworkModule {
                     ignoreUnknownKeys = true
                 })
             }
-//            install(WebSockets) {
-//                // Configure WebSockets if needed
-//            }
+            install(WebSockets) {
+                // Configure WebSockets if needed
+            }
             defaultRequest {
                 val baseUrl = pref.baseUrlPref.ifBlank { Constants.BASE_URL+ Constants.API_VAR }
                 url(baseUrl)
