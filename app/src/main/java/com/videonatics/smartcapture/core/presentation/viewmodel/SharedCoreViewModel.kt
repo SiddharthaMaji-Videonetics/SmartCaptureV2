@@ -69,6 +69,7 @@ class SharedCoreViewModel @Inject constructor(
     private var longitude: Double = 0.0
 
     val socketEvents = socketService.events
+    val taskStreamEvents = socketService.taskEvents
 
     init {
         viewModelScope.launch {

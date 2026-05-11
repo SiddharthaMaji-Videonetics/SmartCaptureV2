@@ -32,6 +32,7 @@ class HomeRepositoryImpl(
         if (authRepository.isTestUser()) {
             return Result.success(
                 UserMeModel(
+                    id = "",
                     username = "Admin User",
                     email = "admin@admin.com",
                     userType = "ADMIN"

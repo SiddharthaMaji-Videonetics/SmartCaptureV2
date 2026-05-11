@@ -50,6 +50,7 @@ data class DashboardInsightModel(
 )
 
 data class UserMeModel(
+    val id: String,
     val username: String,
     val email: String,
     val userType: String
