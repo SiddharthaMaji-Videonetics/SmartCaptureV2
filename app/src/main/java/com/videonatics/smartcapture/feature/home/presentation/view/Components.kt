@@ -112,17 +112,28 @@ fun DashboardContent(
                     }
                 }
 
-                item { KPISection(data.kpis) }
+                if(data.kpis.isNotEmpty()){
+                    item { KPISection(data.kpis) }
+                }
 
-                item { StageBreakdownSection(data.stageBreakdown) }
 
-                item { CommonFailuresSection(data.commonFailures) }
+                if(data.stageBreakdown.isNotEmpty()){
+                    item { StageBreakdownSection(data.stageBreakdown) }
+                }
 
+
+                if(data.commonFailures.isNotEmpty()){
+                    item { CommonFailuresSection(data.commonFailures) }
+                }
+
+
+                if(data.activeTasks.isNotEmpty()){
                 item { 
                     ActiveTasksSection(
                         tasks = data.activeTasks,
                         onTaskClick = onTaskOpen
                     ) 
+                }
                 }
             }
         } else {
@@ -288,7 +299,9 @@ private val fakeMyTasks = listOf(
 @Preview(showBackground = true)
 @Composable
 fun DashboardPreview() {
-    SmartCaptureTheme {
+    SmartCaptureTheme (
+
+    ){
         DashboardContent(
             data = fakeDashboardData,
             isLoading = false
