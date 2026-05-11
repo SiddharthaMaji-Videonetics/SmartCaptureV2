@@ -178,6 +178,7 @@ fun TaskPageComponent(
                             when(taskDetails.stages[index - 1].status){
                                 "COMPLETED" -> true
                                 "OVERRIDE_APPROVED" -> true
+                                "PASSED" -> true
                                 else -> false
                             }
                         }
