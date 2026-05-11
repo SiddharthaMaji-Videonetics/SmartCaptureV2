@@ -21,6 +21,7 @@ class Pref(context: Context) {
         private const val LAST_EMAIL = "last_email"
         private const val LAST_PASSWORD = "last_password"
         private const val IS_TEST_USER = "is_test_user"
+        private const val IS_AUTO_FLASH = "is_auto_flash"
     }
 
     private val sharedPreferences = context.getSharedPreferences(
@@ -84,4 +85,8 @@ class Pref(context: Context) {
     var isTestUser: Boolean
         get() = sharedPreferences.getBoolean(IS_TEST_USER, false)
         set(value) = sharedPreferences.edit { putBoolean(IS_TEST_USER, value) }
+
+    var isAutoFlash: Boolean
+        get() = sharedPreferences.getBoolean(IS_AUTO_FLASH, false)
+        set(value) = sharedPreferences.edit { putBoolean(IS_AUTO_FLASH, value) }
 }

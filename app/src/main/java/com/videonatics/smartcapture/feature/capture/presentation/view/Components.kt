@@ -1,8 +1,10 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.RectF
+import android.media.AudioManager
 import android.util.Log
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -14,6 +16,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +30,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -55,6 +66,7 @@ fun CameraPreviewWithImageProxy(
     captureTrigger: Boolean = false,
     frameIntervalMs: Long = 150L,
     torchEnabled: Boolean = false,
+    soundEnabled: Boolean = true,
     onFrame: (ImageProxy) -> Unit,
     onFullImageCapture:(Float, Bitmap) -> Unit,
     onResolution: (width: Int, height: Int) -> Unit = { _, _ -> }
@@ -62,6 +74,7 @@ fun CameraPreviewWithImageProxy(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     val previewView = remember {
         PreviewView(context).apply {
@@ -84,11 +97,18 @@ fun CameraPreviewWithImageProxy(
 
     LaunchedEffect(captureTrigger) {
         if (captureTrigger) {
+            val originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_SYSTEM)
+            if (!soundEnabled) {
+                audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0)
+            }
             val mainExecutor = ContextCompat.getMainExecutor(context)
             imageCapture?.takePicture(
                 mainExecutor,
                 object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
+                        if (!soundEnabled) {
+                            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, originalVolume, 0)
+                        }
                         try {
                             val rotation = image.imageInfo.rotationDegrees.toFloat()
                             val bitmap = imageProxyToBitmap(image)
@@ -101,6 +121,9 @@ fun CameraPreviewWithImageProxy(
                     }
 
                     override fun onError(exception: ImageCaptureException) {
+                        if (!soundEnabled) {
+                            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, originalVolume, 0)
+                        }
                         Log.e("CameraPreview", "Error capturing image: ${exception.message}", exception)
                     }
                 }
@@ -235,47 +258,76 @@ fun BoundingBoxOverlay(
 @Composable
 fun ToolbarComponent(
     isLowLight: Boolean,
-    onFlashToggle:(Boolean)-> Unit,
+    flashOn: Boolean = false,
+    onFlashToggle: (Boolean) -> Unit,
     isBoundBoxEdit: Boolean,
     onBoundBoxEdit: (Boolean) -> Unit = {},
-    onToolbarSize: (w: Int, h: Int) -> Unit = {_,_->}) {
+    soundEnabled: Boolean = true,
+    onSoundToggle: (Boolean) -> Unit = {},
+    onToolbarSize: (w: Int, h: Int) -> Unit = { _, _ -> }
+) {
     var boundBoxEdit by remember { mutableStateOf(isBoundBoxEdit) }
-    var flashOn by remember { mutableStateOf(false) }
+    var soundOn by remember { mutableStateOf(soundEnabled) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "flashBlink")
+    val blinkAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "blinkAlpha"
+    )
+
+    val flashTint = when {
+        flashOn -> Color(0xFFFF9800)
+        isLowLight -> Color(0xFFFFFFFF).copy(alpha = blinkAlpha)
+        else -> Color(0xFFFFFFFF)
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(5.dp)
-            .onSizeChanged{
-                onToolbarSize.invoke(it.width, it.height)
-            },
+            .onSizeChanged { onToolbarSize.invoke(it.width, it.height) },
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = if (soundOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+            modifier = Modifier
+                .size(30.dp)
+                .padding(5.dp)
+                .clickable {
+                    soundOn = !soundOn
+                    onSoundToggle(soundOn)
+                },
+            contentDescription = "Sound toggle",
+            tint = if (soundOn) Color(0xFFFFFFFF) else Color(0xFFFF9800),
+        )
+
         Icon(
             painterResource(R.drawable.ic_bounding_box),
             modifier = Modifier
                 .size(30.dp)
                 .padding(5.dp)
-                .clickable(
-                    onClick = {
-                        boundBoxEdit = !boundBoxEdit
-                        onBoundBoxEdit.invoke(boundBoxEdit)
-                    }),
-            contentDescription = "Edit Bounding box",
-            tint = if(boundBoxEdit) Color(0xFFFF9800) else Color(0xFFFFFFFF),
+                .clickable {
+                    boundBoxEdit = !boundBoxEdit
+                    onBoundBoxEdit(boundBoxEdit)
+                },
+            contentDescription = "Edit focus box",
+            tint = if (boundBoxEdit) Color(0xFFFF9800) else Color(0xFFFFFFFF),
         )
 
-        AnimatedVisibility(visible = isLowLight || flashOn){
-            Icon(
-                painterResource(R.drawable.ic_flash_on),
-                modifier = Modifier.padding(5.dp).clickable(
-                    onClick = {
-                        flashOn = !flashOn
-                        onFlashToggle.invoke(flashOn)
-                    }),
-                contentDescription = "Camera",
-                tint = if(flashOn) Color(0xFFFF9800) else Color(0xFFFFFFFF),
-            )
-        }
+        Icon(
+            painterResource(R.drawable.ic_flash_on),
+            modifier = Modifier
+                .size(30.dp)
+                .padding(5.dp)
+                .clickable { onFlashToggle(!flashOn) },
+            contentDescription = "Flash",
+            tint = flashTint,
+        )
     }
 }

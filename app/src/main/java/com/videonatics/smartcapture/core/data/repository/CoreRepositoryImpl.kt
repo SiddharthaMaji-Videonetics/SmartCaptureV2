@@ -20,4 +20,12 @@ class CoreRepositoryImpl @Inject constructor(
         localDataSource.setThemeMode(themeMode)
         _themeMode.value = themeMode
     }
+
+    private val _isAutoFlash = MutableStateFlow(localDataSource.getAutoFlash())
+    override val isAutoFlash: StateFlow<Boolean> = _isAutoFlash.asStateFlow()
+
+    override fun setAutoFlash(enabled: Boolean) {
+        localDataSource.setAutoFlash(enabled)
+        _isAutoFlash.value = enabled
+    }
 }

@@ -7,6 +7,8 @@ import javax.inject.Inject
 interface LocalCoreDataSource {
     fun getThemeMode(): ThemeMode
     fun setThemeMode(themeMode: ThemeMode)
+    fun getAutoFlash(): Boolean
+    fun setAutoFlash(enabled: Boolean)
 }
 
 class LocalCoreDataSourceImpl @Inject constructor(
@@ -23,4 +25,8 @@ class LocalCoreDataSourceImpl @Inject constructor(
     override fun setThemeMode(themeMode: ThemeMode) {
         pref.themeModePref = themeMode.name
     }
+
+    override fun getAutoFlash(): Boolean = pref.isAutoFlash
+
+    override fun setAutoFlash(enabled: Boolean) { pref.isAutoFlash = enabled }
 }

@@ -6,4 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 interface CoreRepository {
     val themeMode: StateFlow<ThemeMode>
     fun setThemeMode(themeMode: ThemeMode)
+    val isAutoFlash: StateFlow<Boolean>
+    fun setAutoFlash(enabled: Boolean)
 }

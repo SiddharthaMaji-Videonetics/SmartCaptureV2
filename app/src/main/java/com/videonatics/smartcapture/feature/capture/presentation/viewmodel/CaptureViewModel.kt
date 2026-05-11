@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.videonatics.smartcapture.core.LevelSensorHelper
 import com.videonatics.smartcapture.core.domain.model.AlignmentVector
+import com.videonatics.smartcapture.core.domain.repository.CoreRepository
 import com.videonatics.smartcapture.core.domain.model.Detection
 import com.videonatics.smartcapture.core.filterInside
 import com.videonatics.smartcapture.core.findBestBox
@@ -32,7 +33,8 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val coreRepository: CoreRepository
 ) : ViewModel() {
 
     companion object {
@@ -48,6 +50,23 @@ class CaptureViewModel @Inject constructor(
     var capturableZMax: Float = CAPTURABLE_Z_MAX
     var capturableHTolerance: Float = CAPTURABLE_H_TOLERANCE
     var capturableVTolerance: Float = CAPTURABLE_V_TOLERANCE
+
+    // --- Auto flash ---
+    val isAutoFlash: StateFlow<Boolean> = coreRepository.isAutoFlash
+
+    private val _torchEnabled = MutableStateFlow(false)
+    val torchEnabled: StateFlow<Boolean> = _torchEnabled
+
+    fun updateLowLight(isLowLight: Boolean) {
+        if (isLowLight && coreRepository.isAutoFlash.value) {
+            _torchEnabled.value = true
+        }
+        // never auto-disable; only manual toggle via setTorch can turn torch off
+    }
+
+    fun setTorch(enabled: Boolean) {
+        _torchEnabled.value = enabled
+    }
 
     // --- Audio prompt ---
     private val _isAudioPrompt = MutableStateFlow(true)

@@ -74,6 +74,8 @@ fun CapturePage(
     val focusedObj by viewModel.focusedObj.collectAsState(null)
     val isCapturable by viewModel.isCapturable.collectAsState(false)
     val captureTrigger by viewModel.captureTrigger.collectAsState(false)
+    val isAudioEnabled by viewModel.isAudioPrompt.collectAsState()
+    val torchEnabled by viewModel.torchEnabled.collectAsState()
 
     var interpreter by remember { mutableStateOf<Interpreter?>(null) }
     var gpuDelegate by remember { mutableStateOf<GpuDelegate?>(null) }
@@ -159,6 +161,11 @@ fun CapturePage(
                 isCapturable = isCapturable,
                 detectedObjCount = detectedObjCount.value,
                 tilt = tilt,
+                soundEnabled = isAudioEnabled,
+                onSoundToggle = { viewModel.setAudioPrompt(it) },
+                externalTorchEnabled = torchEnabled,
+                onTorchChange = { viewModel.setTorch(it) },
+                onLowLightChange = { viewModel.updateLowLight(it) },
                 onCaptureImage = {
                     viewModel.captureImage()
                 },
@@ -231,6 +238,11 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                          isCapturable: Boolean = false,
                          detectedObjCount: Int = 0,
                          tilt: Orientation,
+                         soundEnabled: Boolean = true,
+                         onSoundToggle: (Boolean) -> Unit = {},
+                         externalTorchEnabled: Boolean = false,
+                         onTorchChange: (Boolean) -> Unit = {},
+                         onLowLightChange: (Boolean) -> Unit = {},
                          onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                          onCaptureImage:()-> Unit ={},
                          updateCanvasSize:(Float, Float) -> Unit={ _, _->},
@@ -256,7 +268,9 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
         }
     ){ paddingValues ->
         var isLowLight by remember { mutableStateOf(false) }
-        var torchEnabled by remember { mutableStateOf(false) }
+        // Manual flash toggle; auto flash from ViewModel overrides via externalTorchEnabled
+        var manualTorch by remember { mutableStateOf(false) }
+        val torchEnabled = manualTorch || externalTorchEnabled
 
         Box(modifier = Modifier
             .padding(paddingValues)
@@ -269,10 +283,12 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
                 updateCanvasSize,
                 onFocusRectRect,
                 torchEnabled = torchEnabled,
+                soundEnabled = soundEnabled,
                 isBoundBoxEdit = isBoundBoxEdit,
                 detectedObjCount = detectedObjCount,
-                onLightQuality = {lLight ->
+                onLightQuality = { lLight ->
                     isLowLight = lLight
+                    onLowLightChange(lLight)
                 },
                 onFullImageCapture = onFullImageCapture,
                 onImageDimensionsCaptured = onImageDimensionsCaptured,
@@ -290,14 +306,18 @@ fun CapturePageComponent(modifier: Modifier = Modifier,
             )
             ToolbarComponent(
                 isLowLight = isLowLight,
+                flashOn = torchEnabled,
                 onFlashToggle = {
-                    torchEnabled = it
+                    manualTorch = it
+                    onTorchChange(it)
                 },
                 isBoundBoxEdit = isBoundBoxEdit,
                 onBoundBoxEdit = {
                     isBoundBoxEdit = it
                     onBoundBoxEditChange(it)
-                }
+                },
+                soundEnabled = soundEnabled,
+                onSoundToggle = onSoundToggle
             )
         }
     }
@@ -314,6 +334,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         isBoundBoxEdit: Boolean = false,
                         detectedObjCount: Int = 0,
                         torchEnabled: Boolean = false,
+                        soundEnabled: Boolean = true,
                         onLightQuality:(Boolean)-> Unit={},
                         onFullImageCapture:(Float, Bitmap)-> Unit ={ _, _ -> },
                         onImageDimensionsCaptured: (Float, Float) -> Unit = { _, _ -> },
@@ -337,6 +358,7 @@ fun CameraDetectionView(interpreter: Interpreter?,
                         captureTrigger = captureTrigger,
                         frameIntervalMs = 500,
                         torchEnabled = torchEnabled,
+                        soundEnabled = soundEnabled,
                         onFrame = { imageProxy ->
                             if (isProcessing) {
                                 return@CameraPreviewWithImageProxy
