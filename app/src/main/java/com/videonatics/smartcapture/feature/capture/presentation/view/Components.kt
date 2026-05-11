@@ -1,6 +1,7 @@
 package com.videonatics.smartcapture.feature.capture.presentation.view
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.graphics.RectF
 import android.util.Log
 import androidx.camera.core.Camera
@@ -26,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
