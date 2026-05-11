@@ -463,21 +463,28 @@ internal fun CheckRow(
     val isPass = effective.uppercase() in setOf("PASS", "PASSED")
     val pill = resultPill(effective)
     val dataChips = buildList {
-        if (check.checkName == "fat_ne_id_ocr") {
-            val fatId = check.data["primaryNumber"]
-            fatId?.apply {
-                add("FAT ID" to this)
-            }
-        }
+//        if (check.checkName == "fat_ne_id_ocr") {
+//            val fatId = check.data["primaryNumber"]
+//            fatId?.apply {
+//                add("FAT ID" to this)
+//            }
+//        }
         addAll(buildDataChips(check.checkName, check.effectiveData))
-    }
+    }.filter { it.second !="null" }
 
+    val name  = when(check.checkName.toDisplayName()){
+        "Fat Ne Id Ocr" -> "FAT ID"
+        "Variant Detect" -> "Variant"
+        "Damage Assess" -> "Condition"
+        "Wiring Compliance" -> "Wiring"
+        else -> check.checkName.toDisplayName()
+    }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             ConfidenceCircle(confidence = check.confidence)
             Spacer(Modifier.width(10.dp))
             Text(
-                text = check.checkName.toDisplayName(),
+                text = name,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
