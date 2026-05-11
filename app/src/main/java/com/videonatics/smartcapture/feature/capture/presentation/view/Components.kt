@@ -186,6 +186,7 @@ fun CameraPreviewWithImageProxy(
 fun BoundingBoxOverlay(
     boxes: List<Detection>,
     focusedObj: Detection? = null,
+    isPerfectState: Boolean = false,
     imageWidth: Float,
     imageHeight: Float,
     modifier: Modifier = Modifier,
@@ -208,7 +209,7 @@ fun BoundingBoxOverlay(
         val dy = (viewH - scaledH) / 2f
 
         boxes.forEach { b ->
-            val color = if (b == focusedObj) Color.Yellow else boxColor
+            val color = if (b == focusedObj) {if(isPerfectState) boxColor else Color.Yellow} else Color.Red
             val stroke = if (b == focusedObj) 2 * strokeWidth else strokeWidth
 
             val path = Path()
