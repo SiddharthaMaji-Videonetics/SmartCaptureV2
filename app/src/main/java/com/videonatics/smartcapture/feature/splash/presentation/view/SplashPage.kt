@@ -19,7 +19,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.R
-import com.videonatics.smartcapture.core.presentation.view.RootPage
 import com.videonatics.smartcapture.feature.splash.presentation.viewmodel.SplashViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 
@@ -30,11 +29,11 @@ fun SplashPage(navController: NavController, modifier: Modifier = Modifier) {
     val isLoggedIn = viewModel.isLoggedIn.collectAsState(false).value
 
 
-    LaunchedEffect(splashLoad){
-        if(splashLoad){
-            if(isLoggedIn){
+    LaunchedEffect(splashLoad) {
+        if (splashLoad) {
+            if (isLoggedIn) {
                 navController.navigate("home")
-            }else{
+            } else {
                 navController.navigate("auth")
             }
         }

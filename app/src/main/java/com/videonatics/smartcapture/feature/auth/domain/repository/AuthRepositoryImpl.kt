@@ -47,6 +47,7 @@ class AuthRepositoryImpl @Inject constructor(
     private fun saveUserData(data: LoginData) {
         pref.isLoggedInPref = true
         pref.accessToken = data.accessToken
+        pref.refreshToken = data.refreshToken
         pref.userName = data.user.name
         pref.userEmail = data.user.email
         pref.userType = data.user.role
@@ -61,12 +62,20 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logout() {
+        if (!pref.isTestUser) {
+            val token = pref.refreshToken
+            if (!token.isNullOrBlank()) {
+                runCatching { remote.logout(token) }
+            }
+        }
         pref.isLoggedInPref = false
         pref.isTestUser = false
         pref.accessToken = null
+        pref.refreshToken = null
         pref.userName = ""
         pref.userEmail = ""
         pref.userType = ""
+        pref.userId = ""
     }
 
     override fun isTestUser(): Boolean {

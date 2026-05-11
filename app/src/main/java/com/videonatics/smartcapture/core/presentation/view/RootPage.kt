@@ -21,6 +21,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.videonatics.smartcapture.core.presentation.viewmodel.SharedCoreViewModel
@@ -188,11 +189,15 @@ fun RootPage(onThemeSwitch: (ThemeMode) -> Unit) {
                     navController.getBackStackEntry("main_graph")
                 }
                 val sharedViewModel: SharedCoreViewModel = hiltViewModel(parentEntry)
-
-                HandleUnauthorized(sharedViewModel, navController)
+                val isLoggedIn by sharedViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
                 LocalizedPage(sharedViewModel) {
-                    MyCapturesPage(navController = navController, sharedViewModel = sharedViewModel)
+                    MyCapturesPage(
+                        navController = navController,
+                        sharedViewModel = sharedViewModel,
+                        isLoggedIn = isLoggedIn,
+                        onLoginClick = { navController.navigate(PageRoute.AUTH.name) }
+                    )
                 }
             }
 

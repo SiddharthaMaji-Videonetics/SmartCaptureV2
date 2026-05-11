@@ -71,12 +71,24 @@ class SharedCoreViewModel @Inject constructor(
     val socketEvents = socketService.events
     val taskStreamEvents = socketService.taskEvents
 
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn = _isLoggedIn.asStateFlow()
+
     init {
         viewModelScope.launch {
-            if (authRepository.getLoggedIn()) {
-                socketService.connect()
-            }
+            val loggedIn = authRepository.getLoggedIn()
+            _isLoggedIn.value = loggedIn
+            if (loggedIn) socketService.connect()
         }
+    }
+
+    fun onLoginSuccess() {
+        _isLoggedIn.value = true
+        socketService.connect()
+    }
+
+    fun onLoggedOut() {
+        _isLoggedIn.value = false
     }
 
     fun startSocket() {

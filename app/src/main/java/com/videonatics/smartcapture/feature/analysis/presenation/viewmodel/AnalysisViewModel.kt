@@ -3,11 +3,13 @@ package com.videonatics.smartcapture.feature.analysis.presenation.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonatics.smartcapture.core.data.remote.websocket.SocketService
 import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisAttempt
 import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisCheck
 import com.videonatics.smartcapture.feature.analysis.domain.model.AnalysisValidatedCheck
 import com.videonatics.smartcapture.feature.analysis.domain.repository.AnalysisRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -15,6 +17,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -43,7 +47,8 @@ data class AnalysisUiState(
 @HiltViewModel
 class AnalysisViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    private val repository: AnalysisRepository
+    private val repository: AnalysisRepository,
+    private val socketService: SocketService
 ) : ViewModel() {
 
     val taskId: String = checkNotNull(savedState["taskId"])
@@ -55,8 +60,39 @@ class AnalysisViewModel @Inject constructor(
     private val _events = Channel<String>(Channel.BUFFERED)
     val events: Flow<String> = _events.receiveAsFlow()
 
+    private var socketJob: Job? = null
+    private var lastSocketRefreshAt = 0L
+    private val SOCKET_REFRESH_COOLDOWN_MS = 5_000L
+
     init {
         refresh()
+        startSocketListener()
+    }
+
+    private fun startSocketListener() {
+        socketJob?.cancel()
+        socketJob = viewModelScope.launch {
+            socketService.subscribeToTask(taskId)
+            socketService.taskEvents
+                .filter { it.event != "subscribed" }
+                .debounce(2_000L)
+                .collect { event ->
+                    val eventTaskId = event.data["taskId"]?.toString()
+                    if (eventTaskId == null || eventTaskId == taskId) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastSocketRefreshAt >= SOCKET_REFRESH_COOLDOWN_MS
+                            && !_state.value.isSubmitting) {
+                            lastSocketRefreshAt = now
+                            refresh()
+                        }
+                    }
+                }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        socketJob?.cancel()
     }
 
     fun refresh() = viewModelScope.launch {

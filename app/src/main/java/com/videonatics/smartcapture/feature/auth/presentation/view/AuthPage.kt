@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.videonatics.smartcapture.core.Constants
+import com.videonatics.smartcapture.core.presentation.view.PageRoute
 import com.videonatics.smartcapture.feature.auth.presentation.viewmodel.AuthViewModel
 import com.videonatics.smartcapture.ui.theme.SmartCaptureTheme
 import kotlinx.coroutines.launch
@@ -84,8 +87,9 @@ fun AuthPage(navController: NavController, viewModel: AuthViewModel = hiltViewMo
             viewModel.password = "admin123"
             viewModel.login()
         },
-        onEnvClick = {
-            showSheet = true
+        onEnvClick = { showSheet = true },
+        onAddCaptureClick = {
+            navController.navigate(PageRoute.MY_CAPTURES.name)
         }
     )
 
@@ -213,6 +217,7 @@ fun AuthPageComponent(
     onLoginClick: () -> Unit,
     onTestAuthClick: () -> Unit,
     onEnvClick: () -> Unit,
+    onAddCaptureClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(modifier = modifier) { paddingValues ->
@@ -231,7 +236,8 @@ fun AuthPageComponent(
                 onPasswordChange = onPasswordChange,
                 onLoginClick = onLoginClick,
                 onTestAuthClick = onTestAuthClick,
-                onEnvClick = onEnvClick
+                onEnvClick = onEnvClick,
+                onAddCaptureClick = onAddCaptureClick
             )
         }
     }
@@ -248,7 +254,8 @@ fun LoginScreenComponent(
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
     onTestAuthClick: () -> Unit = {},
-    onEnvClick: () -> Unit = {}
+    onEnvClick: () -> Unit = {},
+    onAddCaptureClick: () -> Unit = {}
 ) {
     val isValid = email.isNotBlank() && password.length >= 6
 
@@ -347,6 +354,22 @@ fun LoginScreenComponent(
                 modifier = Modifier.padding(top = 8.dp)
             ) {
                 Text("Environment Settings")
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            OutlinedButton(
+                onClick = onAddCaptureClick,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
+            ) {
+                Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Capture")
             }
         }
     }

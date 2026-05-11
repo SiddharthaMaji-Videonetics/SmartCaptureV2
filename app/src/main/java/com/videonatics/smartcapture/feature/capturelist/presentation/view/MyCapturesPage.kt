@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -51,7 +52,9 @@ import java.util.*
 fun MyCapturesPage(
     modifier: Modifier = Modifier,
     navController: NavController,
-    sharedViewModel: SharedCoreViewModel
+    sharedViewModel: SharedCoreViewModel,
+    isLoggedIn: Boolean = true,
+    onLoginClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val showCaptureChooseBottomSheet = remember {
@@ -74,6 +77,8 @@ fun MyCapturesPage(
     MyCapturesContent(
         modifier = modifier,
         captures = captures,
+        isLoggedIn = isLoggedIn,
+        onLoginClick = onLoginClick,
         isAssignmentMode = currentStageId != null,
         isLoading = isAssignmentLoading,
         onCreateCapture = {
@@ -149,6 +154,8 @@ fun MyCapturesPage(
 private fun MyCapturesContent(
     modifier: Modifier = Modifier,
     captures: List<CaptureModel>,
+    isLoggedIn: Boolean = true,
+    onLoginClick: () -> Unit = {},
     isAssignmentMode: Boolean = false,
     isLoading: Boolean = false,
     onCreateCapture: () -> Unit = {},
@@ -180,6 +187,28 @@ private fun MyCapturesContent(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 Column {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = stringResource(R.string.my_captures),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        actions = {
+                            if (!isLoggedIn) {
+                                TextButton(onClick = onLoginClick) {
+                                    Icon(
+                                        Icons.Default.AccountCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Login", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    )
                     if (isAssignmentMode) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,

@@ -12,6 +12,7 @@ class Pref(context: Context) {
         private const val MODEL_URL = "model_url"
         private const val IS_LOGGED_IN = "is_logged_in"
         private const val ACCESS_TOKEN = "access_token"
+        private const val REFRESH_TOKEN = "refresh_token"
         private const val USER_ID = "user_id"
         private const val USER_NAME = "user_name"
         private const val USER_EMAIL = "user_email"
@@ -47,6 +48,10 @@ class Pref(context: Context) {
     var accessToken: String?
         get() = sharedPreferences.getString(ACCESS_TOKEN, null)
         set(value) = sharedPreferences.edit { putString(ACCESS_TOKEN, value) }
+
+    var refreshToken: String?
+        get() = sharedPreferences.getString(REFRESH_TOKEN, null)
+        set(value) = sharedPreferences.edit { putString(REFRESH_TOKEN, value) }
 
     var userId: String
         get() = sharedPreferences.getString(USER_ID, "") ?: ""

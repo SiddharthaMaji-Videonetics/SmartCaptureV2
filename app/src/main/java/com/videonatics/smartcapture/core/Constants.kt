@@ -8,6 +8,7 @@ object Constants {
     
     object Endpoints {
         const val LOGIN = "auth/login"
+        const val LOGOUT = "auth/logout"
         const val TASKS = "tasks"
         const val TASK_DETAILS = "tasks/"
         const val MY_TASKS = "tasks"
