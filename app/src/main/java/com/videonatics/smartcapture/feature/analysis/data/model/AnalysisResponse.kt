@@ -96,6 +96,9 @@ data class AnalysisValidatedCheckData(
 data class AnalysisValidateCheckRequest(
     val result: String,
     val confidence: Double,
+    val value: JsonObject? = null,
+    val systemValue: JsonObject? = null,
+    val validatedAtAttemptId: String? = null,
     val validatedAtStageId: String? = null,
     val source: String
 )

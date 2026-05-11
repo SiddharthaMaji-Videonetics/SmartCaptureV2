@@ -192,7 +192,7 @@ fun AnalysisPage(
             onAttemptClick(vm.taskId, vm.stageId, attemptId)
         },
         onConfirmCheck = { check ->
-            vm.validate(check.checkName, check.effectiveResult, check.isEdited)
+            vm.validate(check)
         },
         onConfirmAll = {
             vm.validateAll()
@@ -292,7 +292,9 @@ private fun AnalysisContent(
     val isTerminalPassed = stageStatusUpper in terminalPassedStatuses
     val isFrozen = stageStatusUpper in frozenStatuses
     val hasIssue = state.checks.any { it.effectiveResult.uppercase() !in setOf("PASS", "PASSED") }
-    val showActions = !isTerminalPassed && (if (state.hasAnalysis) hasIssue else true)
+    val allUnconfirmed = state.checks.count { !it.carryForward }
+    val showConfirmButton = state.hasAnalysis && allUnconfirmed > 0 && !isFrozen && !isTerminalPassed
+    val showActions = !isTerminalPassed && (if (state.hasAnalysis) hasIssue || showConfirmButton else true)
     val atCap = state.attemptCount >= 5
 
     Column(
@@ -383,11 +385,15 @@ private fun AnalysisContent(
         if (showActions) {
             Spacer(Modifier.height(4.dp))
             if (atCap) { CapReachedBanner(); Spacer(Modifier.height(8.dp)) }
-            if (!atCap) {
-                FullWidthButton(onRetake, !state.isSubmitting, Icons.Default.CameraAlt, "Retake Image", filled = true)
+            if (showConfirmButton) {
+                FullWidthButton(onConfirmAll, !state.isSubmitting, Icons.Outlined.Check, "Confirm ($allUnconfirmed)", filled = true)
                 Spacer(Modifier.height(8.dp))
             }
-            FullWidthButton(onOverrideRequest, !state.isSubmitting, Icons.Outlined.Flag, "Request Override", filled = atCap)
+            if (!atCap) {
+                FullWidthButton(onRetake, !state.isSubmitting, Icons.Default.CameraAlt, "Retake Image", filled = !showConfirmButton)
+                Spacer(Modifier.height(8.dp))
+            }
+            FullWidthButton(onOverrideRequest, !state.isSubmitting, Icons.Outlined.Flag, "Request Override", filled = atCap && !showConfirmButton)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -479,7 +485,12 @@ internal fun CheckRow(
         "Wiring Compliance" -> "Wiring"
         else -> check.checkName.toDisplayName()
     }
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (check.carryForward) Color(0xFFE8F5E9) else Color.Transparent)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             ConfidenceCircle(confidence = check.confidence)
             Spacer(Modifier.width(10.dp))

@@ -29,7 +29,10 @@ interface AnalysisRepository {
         result: String,
         confidence: Double,
         validatedAtStageId: String,
-        editedByOperator: Boolean
+        validatedAtAttemptId: String? = null,
+        editedByOperator: Boolean,
+        value: Map<String, String>? = null,
+        systemValue: Map<String, String>? = null
     ): Result<Unit>
 
      suspend fun editCheckpoint(

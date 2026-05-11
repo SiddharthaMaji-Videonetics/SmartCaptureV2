@@ -105,13 +105,19 @@ class AnalysisRepositoryImpl @Inject constructor(
         result: String,
         confidence: Double,
         validatedAtStageId: String,
-        editedByOperator: Boolean
+        validatedAtAttemptId: String?,
+        editedByOperator: Boolean,
+        value: Map<String, String>?,
+        systemValue: Map<String, String>?
     ): Result<Unit> = remoteDataSource.validateCheck(
         taskId = taskId,
         checkName = checkName,
         body = AnalysisValidateCheckRequest(
             result = result,
             confidence = confidence,
+            value = value?.stripValidationMeta()?.takeIf { it.isNotEmpty() }?.toJsonObject(),
+            systemValue = systemValue?.stripValidationMeta()?.takeIf { it.isNotEmpty() }?.toJsonObject(),
+            validatedAtAttemptId = validatedAtAttemptId,
             validatedAtStageId = validatedAtStageId,
             source = if (editedByOperator) "operator_edited" else "operator_confirmed_system"
         )
@@ -153,6 +159,15 @@ class AnalysisRepositoryImpl @Inject constructor(
 }
 
 // ── JSON helpers ──────────────────────────────────────────────────────────────
+
+private val VALIDATION_META_KEYS = setOf(
+    "validatedCarryForward", "validatedBy", "validatedRole",
+    "validatedAtStageId", "validatedAtAttemptId", "validatedAtMs",
+    "validationSource", "gateOverridden"
+)
+
+private fun Map<String, String>.stripValidationMeta(): Map<String, String> =
+    filterKeys { it !in VALIDATION_META_KEYS }
 
 private fun Map<String, String>.toJsonObject(): JsonObject = buildJsonObject {
     forEach { (k, v) -> put(k, v) }

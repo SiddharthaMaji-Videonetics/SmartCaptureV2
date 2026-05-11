@@ -75,6 +75,13 @@ class AnalysisViewModel @Inject constructor(
                             ?: detail.stages.lastOrNull()
                         val attempts = stage?.attempts ?: emptyList()
                         val latestImageUrl = attempts.maxByOrNull { it.attemptNo }?.imageUrl
+                        val validatedList = validatedChecksResult.getOrDefault(emptyList())
+                        val validatedNames = validatedList.map { it.checkName }.toSet()
+                        val checks = (stage?.latestAnalysis?.checks ?: emptyList()).map { check ->
+                            if (!check.carryForward && check.checkName in validatedNames)
+                                check.copy(carryForward = true)
+                            else check
+                        }
                         _state.update { s ->
                             s.copy(
                                 isLoading = false,
@@ -84,10 +91,10 @@ class AnalysisViewModel @Inject constructor(
                                 stageStatus = stage?.status.orEmpty(),
                                 attempts = attempts,
                                 latestImageUrl = latestImageUrl,
-                                checks = stage?.latestAnalysis?.checks ?: emptyList(),
+                                checks = checks,
                                 hasAnalysis = stage?.latestAnalysis != null,
                                 latestAnalysisPassed = stage?.latestAnalysis?.passed ?: false,
-                                validatedChecks = validatedChecksResult.getOrDefault(emptyList())
+                                validatedChecks = validatedList
                             )
                         }
                     },
@@ -101,19 +108,19 @@ class AnalysisViewModel @Inject constructor(
         }
     }
 
-    fun validate(
-        checkName: String,
-        result: String,
-        editedByOperator: Boolean = false
-    ) = viewModelScope.launch {
+    fun validate(check: AnalysisCheck) = viewModelScope.launch {
+        val latestAttemptId = _state.value.attempts.maxByOrNull { it.attemptNo }?.id
         _state.update { it.copy(isSubmitting = true) }
         repository.validateCheck(
             taskId = taskId,
-            checkName = checkName,
-            result = result,
-            confidence = 1.0,
+            checkName = check.checkName,
+            result = check.effectiveResult,
+            confidence = if (check.isEdited) 1.0 else check.confidence,
             validatedAtStageId = stageId,
-            editedByOperator = editedByOperator
+            validatedAtAttemptId = latestAttemptId,
+            editedByOperator = check.isEdited,
+            value = check.effectiveData.ifEmpty { null },
+            systemValue = check.data.ifEmpty { null }
         ).onSuccess {
             refresh()
             _events.send("Confirmed")
@@ -131,14 +138,18 @@ class AnalysisViewModel @Inject constructor(
         var allSuccess = true
         var lastError: String? = null
 
+        val latestAttemptId = _state.value.attempts.maxByOrNull { it.attemptNo }?.id
         unvalidated.forEach { check ->
             repository.validateCheck(
                 taskId = taskId,
                 checkName = check.checkName,
                 result = check.effectiveResult,
-                confidence = 1.0,
+                confidence = if (check.isEdited) 1.0 else check.confidence,
                 validatedAtStageId = stageId,
-                editedByOperator = check.isEdited
+                validatedAtAttemptId = latestAttemptId,
+                editedByOperator = check.isEdited,
+                value = check.effectiveData.ifEmpty { null },
+                systemValue = check.data.ifEmpty { null }
             ).onFailure {
                 allSuccess = false
                 lastError = it.message
